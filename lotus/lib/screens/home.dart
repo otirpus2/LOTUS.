@@ -97,7 +97,7 @@ class _HomePageState extends State<HomePage> {
                   controller: descController,
                   maxLines: 3,
                   decoration: InputDecoration(
-                    hintText: "Description",
+                    hintText: "",
                     filled: true,
                     fillColor: accentColor,
                     border: OutlineInputBorder(
