@@ -111,8 +111,35 @@ class _HomePageState extends State<HomePage> {
 
                 TextField(
                   controller: dueController,
+                  readOnly: true,
+                  onTap: () async {
+                    DateTime? pickedDate = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2100),
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: ColorScheme.light(
+                              primary: primaryColor, // header & button color
+                              onPrimary: Colors.white,
+                              surface: accentColor,
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
+                    );
+
+                    if (pickedDate != null) {
+                      dueController.text =
+                      "${pickedDate.day}/${pickedDate.month}/${pickedDate.year}";
+                    }
+                  },
                   decoration: InputDecoration(
-                    hintText: "Due Date",
+                    hintText: "Select Due Date",
+                    prefixIcon: const Icon(Icons.calendar_today_rounded),
                     filled: true,
                     fillColor: accentColor,
                     border: OutlineInputBorder(
