@@ -1,39 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:lotus/screens/certificate.dart';
 
-void main() {
-  runApp(const LotusApp());
-}
-
-class LotusApp extends StatelessWidget {
-  const LotusApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'L.O.T.U.S.',
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF5F7FF),
-      ),
-      home: const HomePage(),
-    );
-  }
-}
-
-class Task {
-  String title;
-  String description;
-  String dueDate;
-  bool completed;
-
-  Task({
-    required this.title,
-    required this.description,
-    required this.dueDate,
-    this.completed = false,
-  });
-}
+import 'attendance.dart';
+import 'calendar.dart';
+import 'notification.dart';
+import 'profile.dart';
+import 'community.dart';
+import 'homework.dart';
+import 'reports.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -42,28 +16,57 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
+class Task {
+  String title;
+  String dueDate;
+  bool completed;
+
+  Task({
+    required this.title,
+    required this.dueDate,
+    this.completed = false,
+  });
+}
+
 class _HomePageState extends State<HomePage> {
   final Color primaryColor = const Color(0xFF4F46E5);
   final Color accentColor = const Color(0xFFEEF2FF);
 
   int selectedIndex = 0;
 
+  final PageController alertController =
+  PageController(viewportFraction: 0.92);
+
+  int currentAlert = 0;
+
+  final List<Map<String, String>> alerts = [
+    {
+      "title": "Alerts",
+      "subtitle": "2 assignments due tomorrow",
+    },
+    {
+      "title": "Reminder",
+      "subtitle": "PTM meeting on Friday",
+    },
+    {
+      "title": "Holiday",
+      "subtitle": "School closed on Monday",
+    },
+  ];
+
   List<Task> tasks = [
     Task(
-      title: "Math Homework",
-      description: "Complete chapter 5 exercises",
-      dueDate: "10 May 2026",
+      title: 'Math Homework',
+      dueDate: '10 May',
     ),
     Task(
-      title: "Physics Assignment",
-      description: "Revise Magnetic Dipole",
-      dueDate: "12 May 2026",
+      title: 'Physics Assignment',
+      dueDate: '12 May',
     ),
   ];
 
   void showAddTaskDialog() {
     final titleController = TextEditingController();
-    final descController = TextEditingController();
     final dueController = TextEditingController();
 
     showDialog(
@@ -71,92 +74,66 @@ class _HomePageState extends State<HomePage> {
       builder: (context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(18),
           ),
-          title: const Text("Add Task"),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: InputDecoration(
-                    hintText: "Task Title",
-                    filled: true,
-                    fillColor: accentColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                TextField(
-                  controller: descController,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    hintText: "",
-                    filled: true,
-                    fillColor: accentColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                TextField(
-                  controller: dueController,
-                  readOnly: true,
-                  onTap: () async {
-                    DateTime? pickedDate = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2100),
-                      builder: (context, child) {
-                        return Theme(
-                          data: Theme.of(context).copyWith(
-                            colorScheme: ColorScheme.light(
-                              primary: primaryColor, // header & button color
-                              onPrimary: Colors.white,
-                              surface: accentColor,
-                            ),
-                          ),
-                          child: child!,
-                        );
-                      },
-                    );
-
-                    if (pickedDate != null) {
-                      dueController.text =
-                      "${pickedDate.day}/${pickedDate.month}/${pickedDate.year}";
-                    }
-                  },
-                  decoration: InputDecoration(
-                    hintText: "Select Due Date",
-                    prefixIcon: const Icon(Icons.calendar_today_rounded),
-                    filled: true,
-                    fillColor: accentColor,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ],
+          title: const Text(
+            'Add Task',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
             ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: InputDecoration(
+                  hintText: 'Task Title',
+                  hintStyle: const TextStyle(fontSize: 13),
+                  filled: true,
+                  fillColor: accentColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              TextField(
+                controller: dueController,
+                decoration: InputDecoration(
+                  hintText: 'Due Date',
+                  hintStyle: const TextStyle(fontSize: 13),
+                  filled: true,
+                  fillColor: accentColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                ),
+              ),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
               },
-              child: const Text("Cancel"),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(fontSize: 13),
+              ),
             ),
 
             ElevatedButton(
@@ -165,21 +142,21 @@ class _HomePageState extends State<HomePage> {
                 foregroundColor: Colors.white,
               ),
               onPressed: () {
-                if (titleController.text.isNotEmpty) {
-                  setState(() {
-                    tasks.add(
-                      Task(
-                        title: titleController.text,
-                        description: descController.text,
-                        dueDate: dueController.text,
-                      ),
-                    );
-                  });
-                }
+                setState(() {
+                  tasks.add(
+                    Task(
+                      title: titleController.text,
+                      dueDate: dueController.text,
+                    ),
+                  );
+                });
 
                 Navigator.pop(context);
               },
-              child: const Text("Add"),
+              child: const Text(
+                'Add',
+                style: TextStyle(fontSize: 13),
+              ),
             ),
           ],
         );
@@ -187,76 +164,24 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void showTaskDetails(Task task) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          title: Text(task.title),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Description",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 8),
-
-              Text(task.description),
-
-              const SizedBox(height: 18),
-
-              const Text(
-                "Due Date",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 8),
-
-              Text(task.dueDate),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text("Close"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget dashboardButton(IconData icon, String title) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(24),
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("$title Opened"),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      },
+  Widget dashboardButton(
+      IconData icon,
+      String title, {
+        VoidCallback? onTap,
+      }) {
+    return GestureDetector(
+      onTap: onTap,
       child: Container(
-        width: 150,
-        height: 150,
-        padding: const EdgeInsets.all(16),
+        width: 100,
+        height: 100,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -264,30 +189,27 @@ class _HomePageState extends State<HomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(14),
+              height: 42,
+              width: 42,
               decoration: BoxDecoration(
                 color: accentColor,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
                 icon,
+                size: 22,
                 color: primaryColor,
-                size: 30,
               ),
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
 
-            Flexible(
-              child: Text(
-                title,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -296,7 +218,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget navItem(IconData icon, int index) {
+  Widget navItem(
+      IconData icon,
+      int index,
+      ) {
     final bool active = selectedIndex == index;
 
     return GestureDetector(
@@ -307,15 +232,325 @@ class _HomePageState extends State<HomePage> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: active ? primaryColor : Colors.transparent,
           borderRadius: BorderRadius.circular(18),
         ),
         child: Icon(
           icon,
-          size: 28,
+          size: 24,
           color: active ? Colors.white : Colors.black54,
+        ),
+      ),
+    );
+  }
+
+  Widget homeScreen() {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 8,
+          bottom: 90,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Hi, Suprito',
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            SizedBox(
+              height: 120,
+              child: PageView.builder(
+                controller: alertController,
+                onPageChanged: (index) {
+                  setState(() {
+                    currentAlert = index;
+                  });
+                },
+                itemCount: alerts.length,
+                itemBuilder: (context, index) {
+                  return Container(
+                    margin: const EdgeInsets.only(right: 10),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFF5B4CF0),
+                          Color(0xFF4338F2),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryColor.withValues(alpha: 0.18),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            alerts[index]["title"]!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          Text(
+                            alerts[index]["subtitle"]!,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                alerts.length,
+                    (index) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  height: 7,
+                  width: currentAlert == index ? 18 : 7,
+                  decoration: BoxDecoration(
+                    color: currentAlert == index
+                        ? primaryColor
+                        : Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            const Text(
+              'Quick Access',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            Center(
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  dashboardButton(
+                    Icons.calendar_month_rounded,
+                    'Attendance',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AttendancePage(),
+                        ),
+                      );
+                    },
+                  ),
+
+                  dashboardButton(
+                    Icons.menu_book_rounded,
+                    'H.W',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const HomeworkPage(),
+                        ),
+                      );
+                    },
+                  ),
+
+                  dashboardButton(
+                    Icons.people_rounded,
+                    'Community',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CommunityPage(),
+                        ),
+                      );
+                    },
+                  ),
+
+                  dashboardButton(
+                    Icons.workspace_premium_rounded,
+                    'Achievements',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CertificatePage(),
+                        ),
+                      );
+                    },
+                  ),
+
+                  dashboardButton(
+                    Icons.bar_chart_rounded,
+                    'Reports',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ReportsSection(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'To-Do List',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${tasks.length} Tasks',
+                    style: TextStyle(
+                      color: primaryColor,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            ListView.builder(
+              itemCount: tasks.length,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemBuilder: (context, index) {
+                final task = tasks[index];
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Transform.scale(
+                        scale: 0.85,
+                        child: Checkbox(
+                          activeColor: primaryColor,
+                          value: task.completed,
+                          onChanged: (value) {
+                            setState(() {
+                              task.completed = value!;
+                            });
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(width: 6),
+
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              task.title,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                decoration: task.completed
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
+                              ),
+                            ),
+
+                            const SizedBox(height: 4),
+
+                            Text(
+                              'Due: ${task.dueDate}',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 14,
+                        color: Colors.grey.shade500,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -324,18 +559,75 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
+      backgroundColor: const Color(0xFFF5F7FF),
+
+      floatingActionButton: selectedIndex == 0
+          ? FloatingActionButton.extended(
         backgroundColor: primaryColor,
-        elevation: 10,
+        elevation: 6,
         onPressed: showAddTaskDialog,
-        icon: const Icon(Icons.add, color: Colors.white),
+        icon: const Icon(
+          Icons.add,
+          color: Colors.white,
+          size: 18,
+        ),
         label: const Text(
-          "Add Task",
+          'Add Task',
           style: TextStyle(
             color: Colors.white,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
           ),
         ),
+      )
+          : null,
+
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF5F7FF),
+        elevation: 0,
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/logo.png',
+              height: 32,
+            ),
+
+            const SizedBox(width: 8),
+
+            const Text(
+              'LOTUS DEV.',
+              style: TextStyle(
+                color: Colors.black,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationPage(),
+                  ),
+                );
+              },
+              icon: const Icon(
+                Icons.notifications_none_rounded,
+                color: Colors.black,
+                size: 20,
+              ),
+            ),
+          ),
+        ],
       ),
 
       bottomNavigationBar: Container(
@@ -365,217 +657,13 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
 
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF5F7FF),
-        elevation: 0,
-        title: const Text(
-          "LOTUS",
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: IconButton(
-              onPressed: () {},
-              icon: const Icon(
-                Icons.notifications_none_rounded,
-                color: Colors.black,
-              ),
-            ),
-          ),
+      body: IndexedStack(
+        index: selectedIndex,
+        children: [
+          homeScreen(),
+          const CalendarPage(),
+          const ProfilePage(),
         ],
-      ),
-
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(28),
-                decoration: BoxDecoration(
-                  color: primaryColor,
-                  borderRadius: BorderRadius.circular(32),
-                ),
-                child: const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Welcome Back 👋",
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 18,
-                      ),
-                    ),
-
-                    SizedBox(height: 10),
-
-                    Text(
-                      "Suprito",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              const Text(
-                "Quick Access",
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 18,
-                runSpacing: 18,
-                children: [
-                  dashboardButton(Icons.calendar_month, "Attendance"),
-                  dashboardButton(Icons.menu_book, "H.W"),
-                  dashboardButton(Icons.people, "Community"),
-                  dashboardButton(
-                    Icons.workspace_premium,
-                    "Certificates",
-                  ),
-                  dashboardButton(Icons.bar_chart, "Reports"),
-                ],
-              ),
-
-              const SizedBox(height: 36),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    "To-Do List",
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: accentColor,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(
-                      "${tasks.length} Tasks",
-                      style: TextStyle(
-                        color: primaryColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 18),
-
-              ListView.builder(
-                itemCount: tasks.length,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemBuilder: (context, index) {
-                  final task = tasks[index];
-
-                  return GestureDetector(
-                    onTap: () {
-                      showTaskDetails(task);
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 15,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Checkbox(
-                            activeColor: primaryColor,
-                            value: task.completed,
-                            onChanged: (value) {
-                              setState(() {
-                                task.completed = value!;
-                              });
-                            },
-                          ),
-
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  task.title,
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w600,
-                                    decoration: task.completed
-                                        ? TextDecoration.lineThrough
-                                        : TextDecoration.none,
-                                  ),
-                                ),
-
-                                const SizedBox(height: 6),
-
-                                Text(
-                                  "Due: ${task.dueDate}",
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          Icon(
-                            Icons.arrow_forward_ios_rounded,
-                            size: 18,
-                            color: Colors.grey.shade500,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              const SizedBox(height: 120),
-            ],
-          ),
-        ),
       ),
     );
   }

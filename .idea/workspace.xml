@@ -5,15 +5,42 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="780a64d6-8e5a-4f77-ab00-8348c21ad8f2" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/easycode/codebase-v2.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/calendar.dart" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/notification.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/add_certificate.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/attendance.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/certificate.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/certificate_model.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/certificate_viewer.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/chat_page.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/community.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/data/homework_repository.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/data/notificiation_services.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/data/report_details_screen.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/homework.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/models/homework_model.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/models/message_model.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/models/server_model.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/profile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/remarks_screen.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/report_card_screen.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/reports.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/server_page.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/widgets/dm_tile.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/widgets/message_bubble.dart" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/lotus/lib/screens/widgets/server_tile.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Dart_Packages.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Dart_Packages.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/libraries/Flutter_Plugins.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Flutter_Plugins.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lotus/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/lib/main.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lotus/lib/screens/calendar.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/lib/screens/calendar.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lotus/lib/screens/home.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/lib/screens/home.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lotus/lib/screens/login_page.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/lib/screens/login_page.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lotus/lib/screens/signup.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/lib/screens/signup.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lotus/linux/flutter/generated_plugin_registrant.cc" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/linux/flutter/generated_plugin_registrant.cc" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lotus/linux/flutter/generated_plugins.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/linux/flutter/generated_plugins.cmake" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lotus/macos/Flutter/GeneratedPluginRegistrant.swift" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/macos/Flutter/GeneratedPluginRegistrant.swift" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lotus/pubspec.lock" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/pubspec.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lotus/pubspec.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/pubspec.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lotus/windows/flutter/generated_plugin_registrant.cc" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/windows/flutter/generated_plugin_registrant.cc" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lotus/windows/flutter/generated_plugins.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/windows/flutter/generated_plugins.cmake" afterDir="false" />
     </list>
@@ -59,6 +86,7 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Flutter.LOTUS.executor": "Run",
     "Flutter.main.dart.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -80,12 +108,14 @@
 }]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="D:\code-nexus\LOTUS\lotus\lib\screens" />
+      <recent name="D:\code-nexus\LOTUS\lotus\lib\screens\data" />
       <recent name="D:\code-nexus\LOTUS\lotus\assets" />
       <recent name="D:\code-nexus\LOTUS\lotus" />
     </key>
   </component>
   <component name="RunManager">
-    <configuration name="main.dart" type="FlutterRunConfigurationType" factoryName="Flutter">
+    <configuration name="LOTUS" type="FlutterRunConfigurationType" factoryName="Flutter">
       <option name="filePath" value="$PROJECT_DIR$/lotus/lib/main.dart" />
       <method v="2" />
     </configuration>
@@ -99,5 +129,16 @@
       <updated>1778129961853</updated>
     </task>
     <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
 </project>

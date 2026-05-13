@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -46,7 +47,7 @@ class _SignupPageState extends State<SignupPage> {
 
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -240,25 +241,49 @@ class _SignupPageState extends State<SignupPage> {
                     height: 55,
 
                     child: ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
+                        String name = nameController.text.trim();
+                        String email = emailController.text.trim();
+                        String password = passwordController.text.trim();
+                        String confirmPassword = confirmPasswordController.text.trim();
 
-                        String name =
-                            nameController.text;
+                        if (email.isEmpty || password.isEmpty || name.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Please fill all fields")),
+                          );
+                          return;
+                        }
 
-                        String email =
-                            emailController.text;
+                        if (password != confirmPassword) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Passwords do not match")),
+                          );
+                          return;
+                        }
 
-                        String password =
-                            passwordController.text;
+                        try {
+                          final response = await Supabase.instance.client.auth.signUp(
+                            email: email,
+                            password: password,
+                            data: {'full_name': name},
+                          );
 
-                        String confirmPassword =
-                            confirmPasswordController
-                                .text;
-
-                        print(name);
-                        print(email);
-                        print(password);
-                        print(confirmPassword);
+                          if (response.user != null) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Registration Successful! Please check your email for verification.")),
+                            );
+                            Navigator.pop(context);
+                          }
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(e.toString()),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
                       },
 
                       style: ElevatedButton.styleFrom(
@@ -297,7 +322,9 @@ class _SignupPageState extends State<SignupPage> {
                       ),
 
                       TextButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
 
                         style: TextButton.styleFrom(
                           foregroundColor:

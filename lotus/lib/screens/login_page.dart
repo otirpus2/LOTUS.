@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'signup.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'home.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -69,7 +68,7 @@ class _LoginPageState extends State<LoginPage> {
 
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -218,38 +217,34 @@ class _LoginPageState extends State<LoginPage> {
                         String email = emailController.text;
                         String password = passwordController.text;
 
-                        if (
-                        email == "admin" &&
-                            password == "1234"
-                        ) {
-
-                          final prefs =
-                          await SharedPreferences.getInstance();
-
-
-                          await prefs.setBool(
-                            'isLoggedIn',
-                            true,
+                        try {
+                          final AuthResponse res = await Supabase.instance.client.auth.signInWithPassword(
+                            email: email,
+                            password: password,
                           );
 
-                          Navigator.pushReplacement(
-                            context,
+                          if (res.user != null) {
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.setBool('isLoggedIn', true);
 
-                            MaterialPageRoute(
-                              builder: (context) => const HomePage(),
-                            ),
-                          );
-
-                        } else {
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-
-                            const SnackBar(
-                              content: Text(
-                                "Invalid Email or Password",
+                            if (context.mounted) {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>  HomePage(),
+                                ),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(e.toString()),
+                                backgroundColor: Colors.red,
                               ),
-                            ),
-                          );
+                            );
+                          }
                         }
                       },
 
