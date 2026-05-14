@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lotus/screens/certificate.dart';
+import 'package:intl/intl.dart';
 
 import 'attendance.dart';
 import 'calendar.dart';
@@ -18,21 +19,32 @@ class HomePage extends StatefulWidget {
 }
 
 class Task {
+  String id;
   String title;
   String dueDate;
   bool completed;
 
   Task({
+    required this.id,
     required this.title,
     required this.dueDate,
-    this.completed = false,
+    required this.completed,
   });
+
+  factory Task.fromMap(Map<String, dynamic> map) {
+    return Task(
+      id: map['id'],
+      title: map['title'],
+      dueDate: map['due_date'],
+      completed: map['completed'],
+    );
+  }
 }
 
 class _HomePageState extends State<HomePage> {
   final Color primaryColor = const Color(0xFF4F46E5);
   final Color accentColor = const Color(0xFFEEF2FF);
-  
+
   String _greetingText = 'Hi, ...';
 
   int selectedIndex = 0;
@@ -40,35 +52,19 @@ class _HomePageState extends State<HomePage> {
   final PageController alertController =
   PageController(viewportFraction: 0.92);
 
+  List<Map<String, dynamic>> alerts = [];
+
+  bool loadingAlerts = true;
+
   int currentAlert = 0;
 
-  final List<Map<String, String>> alerts = [
-    {
-      "title": "Alerts",
-      "subtitle": "2 assignments due tomorrow",
-    },
-    {
-      "title": "Reminder",
-      "subtitle": "PTM meeting on Friday",
-    },
-    {
-      "title": "Holiday",
-      "subtitle": "School closed on Monday",
-    },
-  ];
+  RealtimeChannel? alertChannel;
 
-  List<Task> tasks = [
-    Task(
-      title: 'Math Homework',
-      dueDate: '10 May',
-    ),
-    Task(
-      title: 'Physics Assignment',
-      dueDate: '12 May',
-    ),
-  ];
+  List<Task> tasks = [];
 
- Future<void> _loadGreeting() async {
+  RealtimeChannel? todoChannel;
+
+  Future<void> _loadGreeting() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
 
@@ -82,9 +78,7 @@ class _HomePageState extends State<HomePage> {
 
       final username = (res?['username'] as String?)?.trim();
 
-      if (username != null &&
-          username.isNotEmpty &&
-          mounted) {
+      if (username != null && username.isNotEmpty && mounted) {
         setState(() {
           _greetingText = 'Hi, $username';
         });
@@ -94,12 +88,132 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> loadAlerts() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('alerts')
+          .select()
+          .order('created_at', ascending: false);
+
+      final now = DateTime.now();
+
+      final validAlerts = response.where((alert) {
+        final createdAt = DateTime.parse(alert['created_at']);
+
+        final int durationValue = alert['duration_value'];
+
+        final String durationUnit = alert['duration_unit'];
+
+        Duration duration;
+
+        switch (durationUnit) {
+          case 'day':
+            duration = Duration(days: durationValue);
+            break;
+
+          case 'week':
+            duration = Duration(days: durationValue * 7);
+            break;
+
+          case 'month':
+            duration = Duration(days: durationValue * 30);
+            break;
+
+          default:
+            duration = const Duration(days: 1);
+        }
+
+        final expiry = createdAt.add(duration);
+
+        return expiry.isAfter(now);
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          alerts = List<Map<String, dynamic>>.from(validAlerts);
+          loadingAlerts = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load alerts: $e');
+
+      if (mounted) {
+        setState(() {
+          loadingAlerts = false;
+        });
+      }
+    }
+  }
+
+  Future<void> loadTodos() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+
+      if (user == null) return;
+
+      final response = await Supabase.instance.client
+          .from('todos')
+          .select()
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
+
+      if (mounted) {
+        setState(() {
+          tasks = response
+              .map<Task>(
+                (task) => Task.fromMap(task),
+              )
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load todos: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+
     _loadGreeting();
+
+    loadAlerts();
+
+    loadTodos();
+
+    alertChannel = Supabase.instance.client
+        .channel('alerts-channel')
+        .onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'alerts',
+      callback: (payload) async {
+        await loadAlerts();
+      },
+    )
+        .subscribe();
+
+    todoChannel = Supabase.instance.client
+        .channel('todos-channel')
+        .onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'todos',
+      callback: (payload) async {
+        await loadTodos();
+      },
+    )
+        .subscribe();
   }
- 
+
+  @override
+  void dispose() {
+    alertChannel?.unsubscribe();
+    todoChannel?.unsubscribe();
+    alertController.dispose();
+    super.dispose();
+  }
+
   void showAddTaskDialog() {
     final titleController = TextEditingController();
     final dueController = TextEditingController();
@@ -107,93 +221,130 @@ class _HomePageState extends State<HomePage> {
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: const Text(
-            'Add Task',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleController,
-                decoration: InputDecoration(
-                  hintText: 'Task Title',
-                  hintStyle: const TextStyle(fontSize: 13),
-                  filled: true,
-                  fillColor: accentColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              title: const Text(
+                'Add Task',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
                 ),
               ),
-
-              const SizedBox(height: 10),
-
-              TextField(
-                controller: dueController,
-                decoration: InputDecoration(
-                  hintText: 'Due Date',
-                  hintStyle: const TextStyle(fontSize: 13),
-                  filled: true,
-                  fillColor: accentColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text(
-                'Cancel',
-                style: TextStyle(fontSize: 13),
-              ),
-            ),
-
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryColor,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () {
-                setState(() {
-                  tasks.add(
-                    Task(
-                      title: titleController.text,
-                      dueDate: dueController.text,
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    decoration: InputDecoration(
+                      hintText: 'Task Title',
+                      hintStyle: const TextStyle(fontSize: 13),
+                      filled: true,
+                      fillColor: accentColor,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
-                  );
-                });
-
-                Navigator.pop(context);
-              },
-              child: const Text(
-                'Add',
-                style: TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: dueController,
+                    readOnly: true,
+                    onTap: () async {
+                      final DateTime? picked = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime(2100),
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: ColorScheme.light(
+                                primary: primaryColor,
+                                onPrimary: Colors.white,
+                                onSurface: Colors.black,
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (picked != null) {
+                        setDialogState(() {
+                          dueController.text =
+                              DateFormat('dd MMM').format(picked);
+                        });
+                      }
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Select Due Date',
+                      hintStyle: const TextStyle(fontSize: 13),
+                      prefixIcon: Icon(Icons.calendar_today,
+                          size: 16, color: primaryColor),
+                      filled: true,
+                      fillColor: accentColor,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () async {
+                    final user = Supabase.instance.client.auth.currentUser;
+
+                    if (user == null) return;
+
+                    if (titleController.text.isEmpty ||
+                        dueController.text.isEmpty) {
+                      return;
+                    }
+
+                    await Supabase.instance.client.from('todos').insert({
+                      'user_id': user.id,
+                      'title': titleController.text,
+                      'due_date': dueController.text,
+                      'completed': false,
+                    });
+
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  child: const Text(
+                    'Add',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -236,9 +387,7 @@ class _HomePageState extends State<HomePage> {
                 color: primaryColor,
               ),
             ),
-
             const SizedBox(height: 10),
-
             Text(
               title,
               textAlign: TextAlign.center,
@@ -301,93 +450,96 @@ class _HomePageState extends State<HomePage> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-
             const SizedBox(height: 14),
 
-            SizedBox(
-              height: 120,
-              child: PageView.builder(
-                controller: alertController,
-                onPageChanged: (index) {
-                  setState(() {
-                    currentAlert = index;
-                  });
-                },
-                itemCount: alerts.length,
-                itemBuilder: (context, index) {
-                  return Container(
-                    margin: const EdgeInsets.only(right: 10),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF5B4CF0),
-                          Color(0xFF4338F2),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryColor.withValues(alpha: 0.18),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
+            if (!loadingAlerts && alerts.isNotEmpty) ...[
+              SizedBox(
+                height: 120,
+                child: PageView.builder(
+                  controller: alertController,
+                  itemCount: alerts.length,
+                  onPageChanged: (index) {
+                    setState(() {
+                      currentAlert = index;
+                    });
+                  },
+                  itemBuilder: (context, index) {
+                    final alert = alerts[index];
+
+                    return Container(
+                      margin: const EdgeInsets.only(right: 10),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF5B4CF0),
+                            Color(0xFF4338F2),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            alerts[index]["title"]!,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-
-                          const SizedBox(height: 8),
-
-                          Text(
-                            alerts[index]["subtitle"]!,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13,
-                              height: 1.3,
-                            ),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                            primaryColor.withValues(alpha: 0.18),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
-                    ),
-                  );
-                },
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                          mainAxisAlignment:
+                          MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              alert['title'] ?? '',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              alert['subtitle'] ?? '',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-
-            const SizedBox(height: 12),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                alerts.length,
-                    (index) => AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  height: 7,
-                  width: currentAlert == index ? 18 : 7,
-                  decoration: BoxDecoration(
-                    color: currentAlert == index
-                        ? primaryColor
-                        : Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(30),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  alerts.length,
+                      (index) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    margin:
+                    const EdgeInsets.symmetric(horizontal: 3),
+                    height: 7,
+                    width: currentAlert == index ? 18 : 7,
+                    decoration: BoxDecoration(
+                      color: currentAlert == index
+                          ? primaryColor
+                          : Colors.grey.shade300,
+                      borderRadius:
+                      BorderRadius.circular(30),
+                    ),
                   ),
                 ),
               ),
-            ),
-
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
+            ],
 
             const Text(
               'Quick Access',
@@ -396,9 +548,7 @@ class _HomePageState extends State<HomePage> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             const SizedBox(height: 16),
-
             Center(
               child: Wrap(
                 alignment: WrapAlignment.center,
@@ -412,12 +562,12 @@ class _HomePageState extends State<HomePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const AttendancePage(),
+                          builder: (_) =>
+                          const AttendancePage(),
                         ),
                       );
                     },
                   ),
-
                   dashboardButton(
                     Icons.menu_book_rounded,
                     'H.W',
@@ -425,12 +575,12 @@ class _HomePageState extends State<HomePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const HomeworkPage(),
+                          builder: (_) =>
+                          const HomeworkPage(),
                         ),
                       );
                     },
                   ),
-
                   dashboardButton(
                     Icons.people_rounded,
                     'Community',
@@ -438,12 +588,12 @@ class _HomePageState extends State<HomePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const CommunityPage(),
+                          builder: (_) =>
+                          const CommunityPage(),
                         ),
                       );
                     },
                   ),
-
                   dashboardButton(
                     Icons.workspace_premium_rounded,
                     'Achievements',
@@ -451,12 +601,12 @@ class _HomePageState extends State<HomePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const CertificatePage(),
+                          builder: (_) =>
+                          const CertificatePage(),
                         ),
                       );
                     },
                   ),
-
                   dashboardButton(
                     Icons.bar_chart_rounded,
                     'Reports',
@@ -464,7 +614,8 @@ class _HomePageState extends State<HomePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const ReportsSection(),
+                          builder: (_) =>
+                          const ReportsSection(),
                         ),
                       );
                     },
@@ -472,11 +623,10 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-
             const SizedBox(height: 28),
-
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment:
+              MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
                   'To-Do List',
@@ -485,7 +635,6 @@ class _HomePageState extends State<HomePage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -506,9 +655,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
-
             ListView.builder(
               itemCount: tasks.length,
               shrinkWrap: true,
@@ -537,19 +684,21 @@ class _HomePageState extends State<HomePage> {
                         child: Checkbox(
                           activeColor: primaryColor,
                           value: task.completed,
-                          onChanged: (value) {
-                            setState(() {
-                              task.completed = value!;
-                            });
+                          onChanged: (value) async {
+                            await Supabase.instance.client
+                                .from('todos')
+                                .update({
+                                  'completed': value,
+                                })
+                                .eq('id', task.id);
                           },
                         ),
                       ),
-
                       const SizedBox(width: 6),
-
                       Expanded(
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                          CrossAxisAlignment.start,
                           children: [
                             Text(
                               task.title,
@@ -561,9 +710,7 @@ class _HomePageState extends State<HomePage> {
                                     : TextDecoration.none,
                               ),
                             ),
-
                             const SizedBox(height: 4),
-
                             Text(
                               'Due: ${task.dueDate}',
                               style: TextStyle(
@@ -574,11 +721,18 @@ class _HomePageState extends State<HomePage> {
                           ],
                         ),
                       ),
-
-                      Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 14,
-                        color: Colors.grey.shade500,
+                      IconButton(
+                        onPressed: () async {
+                          await Supabase.instance.client
+                              .from('todos')
+                              .delete()
+                              .eq('id', task.id);
+                        },
+                        icon: Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: Colors.red.shade400,
+                        ),
                       ),
                     ],
                   ),
@@ -595,7 +749,6 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FF),
-
       floatingActionButton: selectedIndex == 0
           ? FloatingActionButton.extended(
         backgroundColor: primaryColor,
@@ -616,7 +769,6 @@ class _HomePageState extends State<HomePage> {
         ),
       )
           : null,
-
       appBar: AppBar(
         backgroundColor: const Color(0xFFF5F7FF),
         elevation: 0,
@@ -626,9 +778,7 @@ class _HomePageState extends State<HomePage> {
               'assets/logo.png',
               height: 32,
             ),
-
             const SizedBox(width: 8),
-
             const Text(
               'LOTUS DEV.',
               style: TextStyle(
@@ -651,7 +801,8 @@ class _HomePageState extends State<HomePage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const NotificationPage(),
+                    builder: (_) =>
+                    const NotificationPage(),
                   ),
                 );
               },
@@ -664,7 +815,6 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-
       bottomNavigationBar: Container(
         margin: const EdgeInsets.all(18),
         padding: const EdgeInsets.symmetric(
@@ -691,7 +841,6 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-
       body: IndexedStack(
         index: selectedIndex,
         children: [
