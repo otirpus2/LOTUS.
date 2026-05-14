@@ -5,9 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="780a64d6-8e5a-4f77-ab00-8348c21ad8f2" name="Changes" comment="linked alerts and to-do list with supabase">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lotus/lib/screens/calendar.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/lib/screens/calendar.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lotus/supabase_class_management.sql" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/supabase_class_management.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lotus/supabase_class_management.sql" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
