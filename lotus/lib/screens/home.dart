@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lotus/screens/certificate.dart';
 
 import 'attendance.dart';
@@ -31,6 +32,8 @@ class Task {
 class _HomePageState extends State<HomePage> {
   final Color primaryColor = const Color(0xFF4F46E5);
   final Color accentColor = const Color(0xFFEEF2FF);
+  
+  String _greetingText = 'Hi, ...';
 
   int selectedIndex = 0;
 
@@ -65,6 +68,38 @@ class _HomePageState extends State<HomePage> {
     ),
   ];
 
+ Future<void> _loadGreeting() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+
+      if (user == null) return;
+
+      final res = await Supabase.instance.client
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      final username = (res?['username'] as String?)?.trim();
+
+      if (username != null &&
+          username.isNotEmpty &&
+          mounted) {
+        setState(() {
+          _greetingText = 'Hi, $username';
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load greeting: $e');
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGreeting();
+  }
+ 
   void showAddTaskDialog() {
     final titleController = TextEditingController();
     final dueController = TextEditingController();
@@ -259,7 +294,7 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Hi, Suprito',
+              _greetingText,
               style: TextStyle(
                 color: Colors.grey.shade700,
                 fontSize: 14,
