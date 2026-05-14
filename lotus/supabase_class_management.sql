@@ -1,186 +1,106 @@
--- Class-driven ERP segmentation for LOTUS.
--- Run this in Supabase SQL editor, then enable Realtime for profiles,
--- homework, notifications, notices, assignments, and announcements as needed.
+-- Calendar events for the LOTUS student app.
+-- This script is intentionally additive: it does not change your existing
+-- profiles, class_rooms, homework, notifications, notices, or todos columns.
+--
+-- Event types:
+-- 1. Common event: class_name is null/blank and target_student_ids is empty.
+-- 2. Class event: class_name is set, section is optional, target_student_ids is empty.
+-- 3. Student event: target_student_ids contains one or more auth/profile ids.
 
-create table if not exists public.class_rooms (
-  id uuid primary key default gen_random_uuid(),
-  class_number integer not null check (class_number between 1 and 12),
-  section text not null default '',
-  academic_year text not null default '',
-  schedule jsonb not null default '{}'::jsonb,
-  resources jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (class_number, section, academic_year)
-);
-
-alter table public.class_rooms
-  add column if not exists class_number integer;
-
-do $$
-begin
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'class_rooms'
-      and column_name = 'name'
-  ) then
-    execute $sql$
-      update public.class_rooms
-      set class_number = case
-        when class_number is not null then class_number
-        when name::text ~ '^\d+$' then name::text::integer
-        else null
-      end
-      where class_number is null
-    $sql$;
-  end if;
-end $$;
-
-alter table public.profiles
-  add column if not exists class_id uuid references public.class_rooms(id),
-  add column if not exists class integer,
-  add column if not exists section text,
-  add column if not exists updated_at timestamptz default now();
-
-alter table public.profiles
-  alter column class type integer using (
-    case
-      when class::text ~ '^\d+$' and class::text::integer between 1 and 12
-        then class::text::integer
-      else null
-    end
-  );
-
-alter table public.homework
-  add column if not exists class_number integer,
-  add column if not exists section text not null default '';
-
-alter table public.notifications
-  add column if not exists class_number integer,
-  add column if not exists section text not null default '';
-
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint where conname = 'profiles_class_between_1_12'
-  ) then
-    alter table public.profiles
-      add constraint profiles_class_between_1_12
-      check (class is null or class between 1 and 12);
-  end if;
-
-  if not exists (
-    select 1 from pg_constraint where conname = 'homework_class_between_1_12'
-  ) then
-    alter table public.homework
-      add constraint homework_class_between_1_12
-      check (class_number is null or class_number between 1 and 12);
-  end if;
-
-  if not exists (
-    select 1 from pg_constraint where conname = 'notifications_class_between_1_12'
-  ) then
-    alter table public.notifications
-      add constraint notifications_class_between_1_12
-      check (class_number is null or class_number between 1 and 12);
-  end if;
-end $$;
-
-create index if not exists profiles_class_lookup_idx
-  on public.profiles (class, section);
-
-create index if not exists homework_class_lookup_idx
-  on public.homework (class_number, section, created_at desc);
-
-create index if not exists notifications_class_lookup_idx
-  on public.notifications (class_number, section, created_at desc);
-
-do $$
-begin
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'profiles'
-  ) then
-    alter publication supabase_realtime add table public.profiles;
-  end if;
-
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'homework'
-  ) then
-    alter publication supabase_realtime add table public.homework;
-  end if;
-
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'notifications'
-  ) then
-    alter publication supabase_realtime add table public.notifications;
-  end if;
-end $$;
-
--- Optional target tables for the same class-scoped pattern.
-create table if not exists public.notices (
-  id uuid primary key default gen_random_uuid(),
-  title text not null,
-  body text not null default '',
-  class_number integer not null check (class_number between 1 and 12),
-  section text not null default '',
-  created_by uuid references auth.users(id),
-  created_at timestamptz not null default now()
-);
-
-create table if not exists public.assignments (
+create table if not exists public.calendar_events (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   description text not null default '',
-  due_at timestamptz,
-  class_number integer not null check (class_number between 1 and 12),
+  event_date date not null,
+  color_hex text not null default '#4285F4',
+  class_name text,
   section text not null default '',
+  target_student_ids uuid[] not null default '{}'::uuid[],
   created_by uuid references auth.users(id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint calendar_events_color_hex_format
+    check (color_hex ~ '^#[0-9A-Fa-f]{6}$')
 );
 
-create table if not exists public.announcements (
-  id uuid primary key default gen_random_uuid(),
-  title text not null,
-  body text not null default '',
-  class_number integer not null check (class_number between 1 and 12),
-  section text not null default '',
-  created_by uuid references auth.users(id),
-  created_at timestamptz not null default now()
-);
+alter table public.calendar_events
+  add column if not exists title text not null default '',
+  add column if not exists description text not null default '',
+  add column if not exists event_date date,
+  add column if not exists color_hex text not null default '#4285F4',
+  add column if not exists class_name text,
+  add column if not exists section text not null default '',
+  add column if not exists target_student_ids uuid[] not null default '{}'::uuid[],
+  add column if not exists created_by uuid references auth.users(id),
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
 
-create index if not exists notices_class_lookup_idx
-  on public.notices (class_number, section, created_at desc);
+alter table public.calendar_events
+  drop column if exists target_group;
 
-create index if not exists assignments_class_lookup_idx
-  on public.assignments (class_number, section, created_at desc);
+create index if not exists calendar_events_date_idx
+  on public.calendar_events (event_date);
 
-create index if not exists announcements_class_lookup_idx
-  on public.announcements (class_number, section, created_at desc);
+create index if not exists calendar_events_class_lookup_idx
+  on public.calendar_events (lower(trim(class_name)), lower(trim(section)), event_date);
+
+create index if not exists calendar_events_target_student_ids_idx
+  on public.calendar_events using gin (target_student_ids);
+
+alter table public.calendar_events enable row level security;
+
+drop policy if exists "Admins can manage calendar events"
+  on public.calendar_events;
+
+drop policy if exists "Students can read targeted calendar events"
+  on public.calendar_events;
+
+drop policy if exists "Students can read visible calendar events"
+  on public.calendar_events;
+
+drop function if exists public.current_profile_is_admin();
+
+create policy "Students can read visible calendar events"
+  on public.calendar_events
+  for select
+  using (
+    auth.uid() is not null
+    and (
+      (
+        coalesce(cardinality(calendar_events.target_student_ids), 0) > 0
+        and auth.uid() = any(calendar_events.target_student_ids)
+      )
+      or (
+        coalesce(cardinality(calendar_events.target_student_ids), 0) = 0
+        and nullif(trim(coalesce(calendar_events.class_name, '')), '') is null
+      )
+      or (
+        coalesce(cardinality(calendar_events.target_student_ids), 0) = 0
+        and exists (
+          select 1
+          from public.profiles p
+          where p.id = auth.uid()
+            and lower(trim(coalesce(p.class::text, ''))) =
+                lower(trim(coalesce(calendar_events.class_name, '')))
+            and (
+              trim(coalesce(calendar_events.section, '')) = ''
+              or lower(trim(coalesce(p.section, ''))) =
+                 lower(trim(calendar_events.section))
+            )
+        )
+      )
+    )
+  );
 
 do $$
 begin
   if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'notices'
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'calendar_events'
   ) then
-    alter publication supabase_realtime add table public.notices;
-  end if;
-
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'assignments'
-  ) then
-    alter publication supabase_realtime add table public.assignments;
-  end if;
-
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'announcements'
-  ) then
-    alter publication supabase_realtime add table public.announcements;
+    alter publication supabase_realtime add table public.calendar_events;
   end if;
 end $$;
