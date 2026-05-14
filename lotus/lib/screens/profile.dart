@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -111,8 +110,6 @@ class StudentProfile {
       'full_name': fullName.trim(),
       'mother_name': motherName.trim(),
       'father_name': fatherName.trim(),
-      'class': studentClass,
-      'section': section.trim(),
       'mobile_number': mobileNumber.trim(),
       'email': authEmail,
       'category': category.trim(),
@@ -252,17 +249,6 @@ class _ProfilePageState extends State<ProfilePage> {
     });
 
     try {
-      final classText = _studentClassController.text.trim();
-      final classNumber = int.tryParse(classText);
-      if (classText.isNotEmpty &&
-          (classNumber == null || classNumber < 1 || classNumber > 12)) {
-        _showMessage('Class must be a number from 1 to 12.');
-        setState(() {
-          _isSaving = false;
-        });
-        return;
-      }
-
       final StudentProfile profile = _profileFromControllers(
         authEmail: user.email ?? '',
       );
@@ -322,8 +308,8 @@ class _ProfilePageState extends State<ProfilePage> {
       fullName: _fullNameController.text,
       motherName: _motherNameController.text,
       fatherName: _fatherNameController.text,
-      studentClass: int.tryParse(_studentClassController.text.trim()),
-      section: _sectionController.text,
+      studentClass: student.studentClass,
+      section: student.section,
       mobileNumber: _mobileNumberController.text,
       email: authEmail.isEmpty ? _emailController.text : authEmail,
       category: _categoryController.text,
@@ -573,11 +559,7 @@ class _ProfilePageState extends State<ProfilePage> {
             title: "Class",
             value: student.classLabel,
             controller: _studentClassController,
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(2),
-            ],
+            enabled: false,
           ),
 
           _profileTile(
@@ -585,6 +567,7 @@ class _ProfilePageState extends State<ProfilePage> {
             title: "Section",
             value: student.section,
             controller: _sectionController,
+            enabled: false,
           ),
 
           _profileTile(
@@ -718,7 +701,6 @@ class _ProfilePageState extends State<ProfilePage> {
     required String value,
     TextEditingController? controller,
     TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters,
     bool enabled = true,
   }) {
     return Container(
@@ -760,7 +742,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   TextField(
                     controller: controller,
                     keyboardType: keyboardType,
-                    inputFormatters: inputFormatters,
                     decoration: const InputDecoration(
                       isDense: true,
                       border: InputBorder.none,
