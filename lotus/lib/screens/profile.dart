@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -33,7 +36,7 @@ class StudentProfile {
   final String fullName;
   final String motherName;
   final String fatherName;
-  final String studentClass;
+  final int? studentClass;
   final String section;
   final String mobileNumber;
   final String email;
@@ -57,7 +60,7 @@ class StudentProfile {
       fullName: '',
       motherName: '',
       fatherName: '',
-      studentClass: '',
+      studentClass: null,
       section: '',
       mobileNumber: '',
       email: email,
@@ -71,7 +74,7 @@ class StudentProfile {
       fullName: map['full_name'] ?? map['username'] ?? '',
       motherName: map['mother_name'] ?? '',
       fatherName: map['father_name'] ?? '',
-      studentClass: map['class'] ?? '',
+      studentClass: _readClassNumber(map['class']),
       section: map['section'] ?? '',
       mobileNumber: map['mobile_number'] ?? '',
       email: map['email'] ?? '',
@@ -88,6 +91,16 @@ class StudentProfile {
     return const [];
   }
 
+  static int? _readClassNumber(dynamic value) {
+    if (value is int && value >= 1 && value <= 12) return value;
+
+    final parsed = int.tryParse((value ?? '').toString().trim());
+    if (parsed == null || parsed < 1 || parsed > 12) return null;
+    return parsed;
+  }
+
+  String get classLabel => studentClass?.toString() ?? '';
+
   Map<String, dynamic> toMap({
     required String userId,
     required String authEmail,
@@ -98,7 +111,7 @@ class StudentProfile {
       'full_name': fullName.trim(),
       'mother_name': motherName.trim(),
       'father_name': fatherName.trim(),
-      'class': studentClass.trim(),
+      'class': studentClass,
       'section': section.trim(),
       'mobile_number': mobileNumber.trim(),
       'email': authEmail,
@@ -136,6 +149,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _isSaving = false;
   bool _isEditing = false;
   String? _loadError;
+  StreamSubscription<List<Map<String, dynamic>>>? _profileSubscription;
 
   @override
   void initState() {
@@ -145,6 +159,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   void dispose() {
+    _profileSubscription?.cancel();
     _fullNameController.dispose();
     _motherNameController.dispose();
     _fatherNameController.dispose();
@@ -172,16 +187,16 @@ class _ProfilePageState extends State<ProfilePage> {
       final Map<String, dynamic>? row = await _supabase
           .from('profiles')
           .select(
-        'id, username, full_name, mother_name, father_name, class, section, mobile_number, email, category, subjects',
-      )
+            'id, username, full_name, mother_name, father_name, class, section, mobile_number, email, category, subjects',
+          )
           .eq('id', user.id)
           .maybeSingle();
 
       final StudentProfile loadedProfile = row == null
           ? StudentProfile.empty(email: user.email ?? '')
           : StudentProfile.fromMap(
-        row,
-      ).copyWith(email: user.email ?? row['email'] ?? '');
+              row,
+            ).copyWith(email: user.email ?? row['email'] ?? '');
 
       if (!mounted) return;
 
@@ -190,6 +205,8 @@ class _ProfilePageState extends State<ProfilePage> {
         _setControllersFromProfile(loadedProfile);
         _isLoading = false;
       });
+
+      _watchProfile(user.id);
     } catch (e) {
       if (!mounted) return;
 
@@ -198,6 +215,29 @@ class _ProfilePageState extends State<ProfilePage> {
         _isLoading = false;
       });
     }
+  }
+
+  void _watchProfile(String userId) {
+    _profileSubscription?.cancel();
+    _profileSubscription = _supabase
+        .from('profiles')
+        .stream(primaryKey: ['id'])
+        .eq('id', userId)
+        .listen((rows) {
+          if (!mounted || rows.isEmpty) return;
+
+          final updatedProfile = StudentProfile.fromMap(rows.first).copyWith(
+            email:
+                _supabase.auth.currentUser?.email ?? rows.first['email'] ?? '',
+          );
+
+          setState(() {
+            student = updatedProfile;
+            if (!_isEditing) {
+              _setControllersFromProfile(updatedProfile);
+            }
+          });
+        });
   }
 
   Future<void> _saveProfile() async {
@@ -212,6 +252,17 @@ class _ProfilePageState extends State<ProfilePage> {
     });
 
     try {
+      final classText = _studentClassController.text.trim();
+      final classNumber = int.tryParse(classText);
+      if (classText.isNotEmpty &&
+          (classNumber == null || classNumber < 1 || classNumber > 12)) {
+        _showMessage('Class must be a number from 1 to 12.');
+        setState(() {
+          _isSaving = false;
+        });
+        return;
+      }
+
       final StudentProfile profile = _profileFromControllers(
         authEmail: user.email ?? '',
       );
@@ -219,12 +270,12 @@ class _ProfilePageState extends State<ProfilePage> {
       await _supabase
           .from('profiles')
           .upsert(
-        profile.toMap(
-          userId: user.id,
-          authEmail: user.email ?? profile.email,
-        ),
-        onConflict: 'id',
-      );
+            profile.toMap(
+              userId: user.id,
+              authEmail: user.email ?? profile.email,
+            ),
+            onConflict: 'id',
+          );
 
       if (!mounted) return;
 
@@ -249,7 +300,7 @@ class _ProfilePageState extends State<ProfilePage> {
     _fullNameController.text = profile.fullName;
     _motherNameController.text = profile.motherName;
     _fatherNameController.text = profile.fatherName;
-    _studentClassController.text = profile.studentClass;
+    _studentClassController.text = profile.classLabel;
     _sectionController.text = profile.section;
     _mobileNumberController.text = profile.mobileNumber;
     _emailController.text = profile.email;
@@ -271,7 +322,7 @@ class _ProfilePageState extends State<ProfilePage> {
       fullName: _fullNameController.text,
       motherName: _motherNameController.text,
       fatherName: _fatherNameController.text,
-      studentClass: _studentClassController.text,
+      studentClass: int.tryParse(_studentClassController.text.trim()),
       section: _sectionController.text,
       mobileNumber: _mobileNumberController.text,
       email: authEmail.isEmpty ? _emailController.text : authEmail,
@@ -298,8 +349,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
   void _removeSubjectField(int index) {
     setState(() {
-      final TextEditingController controller =
-      _subjectControllers.removeAt(index);
+      final TextEditingController controller = _subjectControllers.removeAt(
+        index,
+      );
       controller.dispose();
     });
   }
@@ -321,7 +373,7 @@ class _ProfilePageState extends State<ProfilePage> {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginPage()),
-          (route) => false,
+      (route) => false,
     );
   }
 
@@ -356,31 +408,29 @@ class _ProfilePageState extends State<ProfilePage> {
           _isLoading
               ? const SizedBox.shrink()
               : IconButton(
-            onPressed: _isSaving
-                ? null
-                : () {
-              if (_isEditing) {
-                _saveProfile();
-              } else {
-                setState(() {
-                  _isEditing = true;
-                });
-              }
-            },
-            icon: _isSaving
-                ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-              ),
-            )
-                : Icon(
-              _isEditing ? Icons.check_rounded : Icons.edit_rounded,
-              color: const Color(0xFF5B5BD6),
-              size: 20,
-            ),
-          ),
+                  onPressed: _isSaving
+                      ? null
+                      : () {
+                          if (_isEditing) {
+                            _saveProfile();
+                          } else {
+                            setState(() {
+                              _isEditing = true;
+                            });
+                          }
+                        },
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          _isEditing ? Icons.check_rounded : Icons.edit_rounded,
+                          color: const Color(0xFF5B5BD6),
+                          size: 20,
+                        ),
+                ),
         ],
       ),
 
@@ -403,10 +453,7 @@ class _ProfilePageState extends State<ProfilePage> {
               Text(
                 _loadError!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 14,
-                ),
+                style: const TextStyle(color: Colors.black87, fontSize: 14),
               ),
               const SizedBox(height: 10),
               ElevatedButton(
@@ -434,11 +481,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   color: const Color(0xFF6C72A8),
                   borderRadius: BorderRadius.circular(18),
                 ),
-                child: const Icon(
-                  Icons.person,
-                  size: 55,
-                  color: Colors.white,
-                ),
+                child: const Icon(Icons.person, size: 55, color: Colors.white),
               ),
 
               Positioned(
@@ -528,8 +571,13 @@ class _ProfilePageState extends State<ProfilePage> {
           _profileTile(
             icon: Icons.school_outlined,
             title: "Class",
-            value: student.studentClass,
+            value: student.classLabel,
             controller: _studentClassController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(2),
+            ],
           ),
 
           _profileTile(
@@ -604,16 +652,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 onPressed: _isSaving ? null : _logout,
-                icon: const Icon(
-                  Icons.logout_rounded,
-                  size: 18,
-                ),
+                icon: const Icon(Icons.logout_rounded, size: 18),
                 label: const Text(
                   "Logout",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -633,8 +675,8 @@ class _ProfilePageState extends State<ProfilePage> {
           onRemove: _subjectControllers.length == 1
               ? null
               : () {
-            _removeSubjectField(entry.key);
-          },
+                  _removeSubjectField(entry.key);
+                },
         );
       }).toList();
     }
@@ -676,14 +718,12 @@ class _ProfilePageState extends State<ProfilePage> {
     required String value,
     TextEditingController? controller,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
     bool enabled = true,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -697,11 +737,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 20,
-            color: Colors.grey.shade600,
-          ),
+          Icon(icon, size: 20, color: Colors.grey.shade600),
 
           const SizedBox(width: 12),
 
@@ -724,6 +760,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   TextField(
                     controller: controller,
                     keyboardType: keyboardType,
+                    inputFormatters: inputFormatters,
                     decoration: const InputDecoration(
                       isDense: true,
                       border: InputBorder.none,
@@ -760,10 +797,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -788,24 +822,24 @@ class _ProfilePageState extends State<ProfilePage> {
           Expanded(
             child: _isEditing && controller != null
                 ? TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-              ),
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            )
+                    controller: controller,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  )
                 : Text(
-              value ?? '',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+                    value ?? '',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
           ),
 
           if (_isEditing && onRemove != null)
@@ -828,7 +862,7 @@ extension on StudentProfile {
     String? fullName,
     String? motherName,
     String? fatherName,
-    String? studentClass,
+    int? studentClass,
     String? section,
     String? mobileNumber,
     String? email,

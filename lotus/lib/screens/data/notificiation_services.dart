@@ -2,7 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class NotificationService {
   NotificationService({SupabaseClient? supabase})
-      : _supabase = supabase ?? Supabase.instance.client;
+    : _supabase = supabase ?? Supabase.instance.client;
 
   final SupabaseClient _supabase;
 
@@ -10,18 +10,21 @@ class NotificationService {
     required String title,
     required String subtitle,
     required String homeworkId,
+    required int classNumber,
+    String section = '',
   }) async {
     final authUser = _supabase.auth.currentUser;
 
-    // Fetch all users (MVP). Supabase auth users are not directly queryable
-    // with the client for security reasons, but for testing we assume a
-    // `profiles` table exists that mirrors auth users.
-    //
-    // If your `profiles` table doesn't exist yet, create it as described in TODO.md.
-    final profiles = await _supabase
+    var query = _supabase
         .from('profiles')
         .select('id')
-        .order('id', ascending: true);
+        .eq('class', classNumber);
+
+    if (section.trim().isNotEmpty) {
+      query = query.eq('section', section.trim());
+    }
+
+    final profiles = await query.order('id', ascending: true);
 
     final List<dynamic> rows = profiles as List<dynamic>;
 
@@ -33,8 +36,9 @@ class NotificationService {
         'subtitle': subtitle,
         'type': 'homework_uploaded',
         'homework_id': homeworkId,
+        'class_number': classNumber,
+        'section': section.trim(),
         'created_at': DateTime.now().toIso8601String(),
-        // optional: track who triggered
         'created_by': authUser?.id,
       });
     }

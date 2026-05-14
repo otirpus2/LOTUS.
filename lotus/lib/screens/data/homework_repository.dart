@@ -2,15 +2,19 @@ import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/class_scope.dart';
 import '../models/homework_model.dart';
+import 'class_management_repository.dart';
 import 'notificiation_services.dart';
 
 class HomeworkRepository {
   HomeworkRepository({SupabaseClient? supabase})
-      : _supabase = supabase ?? Supabase.instance.client;
+    : _supabase = supabase ?? Supabase.instance.client;
 
   final SupabaseClient _supabase;
   final NotificationService _notificationService = NotificationService();
+  late final ClassManagementRepository _classRepository =
+      ClassManagementRepository(supabase: _supabase);
 
   static const String _bucket = 'homework';
   static const Map<String, String> _folderSubjects = {
@@ -51,6 +55,7 @@ class HomeworkRepository {
     required String fileName,
     required String subject,
     required String localPath,
+    ClassScope? targetClass,
   }) async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
@@ -62,8 +67,14 @@ class HomeworkRepository {
       throw ArgumentError('Unsupported file type');
     }
 
+    final classScope =
+        targetClass ?? await _classRepository.getCurrentClassScope();
+    if (!classScope.isAssigned) {
+      throw StateError('Assign a class before uploading homework.');
+    }
+
     final storagePath =
-        '${normalizeSubjectFolder(subject)}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+        'class_${classScope.classNumber}/${classScope.section}/${normalizeSubjectFolder(subject)}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
 
     final file = File(localPath);
     if (!await file.exists()) {
@@ -78,13 +89,14 @@ class HomeworkRepository {
     final insertRes = await _supabase
         .from('homework')
         .upsert({
-      'subject':
-      _folderSubjects[normalizeSubjectFolder(subject)] ?? subject,
-      'file_type': fileType,
-      'file_name': fileName,
-      'storage_path': storagePath,
-      'uploaded_by': user.id,
-    }, onConflict: 'storage_path')
+          'subject':
+              _folderSubjects[normalizeSubjectFolder(subject)] ?? subject,
+          'file_type': fileType,
+          'file_name': fileName,
+          'storage_path': storagePath,
+          'uploaded_by': user.id,
+          ...classScope.toHomeworkColumns(),
+        }, onConflict: 'storage_path')
         .select()
         .maybeSingle();
 
@@ -96,8 +108,11 @@ class HomeworkRepository {
 
     await _notificationService.createHomeworkNotifications(
       title: 'New Homework Added',
-      subtitle: 'Subject: $subject • ${fileType.toUpperCase()} file: $fileName',
+      subtitle:
+          '${classScope.label} - Subject: $subject - ${fileType.toUpperCase()} file: $fileName',
       homeworkId: homework.id,
+      classNumber: classScope.classNumber!,
+      section: classScope.section,
     );
 
     return homework;
@@ -106,13 +121,19 @@ class HomeworkRepository {
   Future<List<HomeworkModel>> listHomeworks({
     String? subject,
     String? fileType, // normalized pdf/doc/excel
+    ClassScope? classScope,
   }) async {
     await syncStorageMetadata();
 
-    // MVP-safe filtering without relying on eq() builder methods.
+    final scope = classScope ?? await _classRepository.getCurrentClassScope();
+    if (!scope.isAssigned) {
+      return const <HomeworkModel>[];
+    }
+
     final res = await _supabase
         .from('homework')
         .select('*')
+        .eq('class_number', scope.classNumber!)
         .order('created_at', ascending: false);
 
     final data = res as List<dynamic>;
@@ -120,12 +141,16 @@ class HomeworkRepository {
     return data
         .map((e) => HomeworkModel.fromMap(e as Map<String, dynamic>))
         .where((h) {
-      final subjectOk =
-          subject == null || subject == 'All' || h.subject == subject;
-      final fileTypeOk =
-          fileType == null || fileType == 'All' || h.fileType == fileType;
-      return subjectOk && fileTypeOk;
-    })
+          final subjectOk =
+              subject == null || subject == 'All' || h.subject == subject;
+          final fileTypeOk =
+              fileType == null || fileType == 'All' || h.fileType == fileType;
+          final sectionOk =
+              scope.section.isEmpty ||
+              h.section.isEmpty ||
+              h.section == scope.section;
+          return subjectOk && fileTypeOk && sectionOk;
+        })
         .toList();
   }
 

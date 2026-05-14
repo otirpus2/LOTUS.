@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'data/class_management_repository.dart';
 import 'data/homework_repository.dart';
+import 'models/class_scope.dart';
 import 'models/homework_model.dart';
 
 class HomeworkPage extends StatefulWidget {
@@ -14,6 +18,7 @@ class HomeworkPage extends StatefulWidget {
 
 class _HomeworkPageState extends State<HomeworkPage> {
   final HomeworkRepository _repo = HomeworkRepository();
+  final ClassManagementRepository _classRepo = ClassManagementRepository();
 
   final List<String> subjects = const ['All', 'Math', 'Science', 'SST'];
   final List<String> fileTypes = const ['All', 'PDF', 'DOC', 'Excel'];
@@ -27,12 +32,22 @@ class _HomeworkPageState extends State<HomeworkPage> {
   bool isAdmin = false;
   bool isCheckingAdmin = true;
 
+  ClassScope currentClass = const ClassScope(classNumber: null, section: '');
   List<HomeworkModel> homeworks = [];
+  StreamSubscription<ClassScope>? _classSubscription;
+  StreamSubscription<List<HomeworkModel>>? _homeworkSubscription;
 
   @override
   void initState() {
     super.initState();
     _bootstrap();
+  }
+
+  @override
+  void dispose() {
+    _classSubscription?.cancel();
+    _homeworkSubscription?.cancel();
+    super.dispose();
   }
 
   String? normalizeSelectedFileType(String type) {
@@ -54,15 +69,13 @@ class _HomeworkPageState extends State<HomeworkPage> {
 
     try {
       final admin = await _repo.isAdmin();
-      final list = await _repo.listHomeworks(
-        subject: selectedSubject,
-        fileType: normalizeSelectedFileType(selectedFileType),
-      );
 
       setState(() {
         isAdmin = admin;
-        homeworks = list;
+        isCheckingAdmin = false;
       });
+
+      _watchClassScope();
     } catch (e) {
       setState(() {
         error = e.toString();
@@ -70,39 +83,73 @@ class _HomeworkPageState extends State<HomeworkPage> {
     } finally {
       if (mounted) {
         setState(() {
-          isLoading = false;
           isCheckingAdmin = false;
         });
       }
     }
   }
 
-  Future<void> _refresh() async {
-    setState(() {
-      isLoading = true;
-      error = null;
-    });
+  void _watchClassScope() {
+    _classSubscription?.cancel();
+    _classSubscription = _classRepo.watchCurrentClassScope().listen(
+      (scope) {
+        if (!mounted) return;
 
-    try {
-      final list = await _repo.listHomeworks(
-        subject: selectedSubject,
-        fileType: normalizeSelectedFileType(selectedFileType),
-      );
-
-      setState(() {
-        homeworks = list;
-      });
-    } catch (e) {
-      setState(() {
-        error = e.toString();
-      });
-    } finally {
-      if (mounted) {
         setState(() {
+          currentClass = scope;
+          isLoading = true;
+          error = null;
+        });
+
+        _watchHomeworks(scope);
+      },
+      onError: (Object e) {
+        if (!mounted) return;
+
+        setState(() {
+          error = e.toString();
           isLoading = false;
         });
-      }
+      },
+    );
+  }
+
+  void _watchHomeworks(ClassScope scope) {
+    _homeworkSubscription?.cancel();
+
+    if (!scope.isAssigned) {
+      setState(() {
+        homeworks = const <HomeworkModel>[];
+        isLoading = false;
+      });
+      return;
     }
+
+    _homeworkSubscription = _classRepo
+        .watchClassHomeworks(
+          scope: scope,
+          subject: selectedSubject,
+          fileType: normalizeSelectedFileType(selectedFileType),
+        )
+        .listen(
+          (list) {
+            if (!mounted) return;
+
+            setState(() {
+              homeworks = list;
+              isLoading = false;
+              error = null;
+            });
+          },
+          onError: (Object e) {
+            if (!mounted) return;
+
+            setState(() {
+              error = e.toString();
+              isLoading = false;
+            });
+          },
+        );
   }
 
   @override
@@ -159,59 +206,62 @@ class _HomeworkPageState extends State<HomeworkPage> {
                 child: isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : homeworks.isEmpty
-                    ? const Center(
-                  child: Text(
-                    'No homework found',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                )
+                    ? Center(
+                        child: Text(
+                          currentClass.isAssigned
+                              ? 'No homework found'
+                              : 'Your profile is not assigned to a class yet.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      )
                     : ListView.builder(
-                  itemCount: homeworks.length,
-                  itemBuilder: (context, index) {
-                    final h = homeworks[index];
-                    return _HomeworkCard(
-                      subject: h.subject,
-                      fileType: h.fileType,
-                      fileName: h.fileName,
-                      createdAt: h.createdAt,
-                      onOpen: () async {
-                        final url = await _repo.getDownloadUrl(
-                          storagePath: h.storagePath,
-                        );
-                        if (!context.mounted) return;
+                        itemCount: homeworks.length,
+                        itemBuilder: (context, index) {
+                          final h = homeworks[index];
+                          return _HomeworkCard(
+                            subject: h.subject,
+                            fileType: h.fileType,
+                            fileName: h.fileName,
+                            createdAt: h.createdAt,
+                            onOpen: () async {
+                              final url = await _repo.getDownloadUrl(
+                                storagePath: h.storagePath,
+                              );
+                              if (!context.mounted) return;
 
-                        final opened = await launchUrl(
-                          Uri.parse(url),
-                          mode: LaunchMode.externalApplication,
-                        );
+                              final opened = await launchUrl(
+                                Uri.parse(url),
+                                mode: LaunchMode.externalApplication,
+                              );
 
-                        if (!opened && context.mounted) {
-                          await Clipboard.setData(
-                            ClipboardData(text: url),
+                              if (!opened && context.mounted) {
+                                await Clipboard.setData(
+                                  ClipboardData(text: url),
+                                );
+                                if (!context.mounted) return;
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Download link copied. Open it in your browser to download.',
+                                    ),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            },
                           );
-                          if (!context.mounted) return;
-
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Download link copied. Open it in your browser to download.',
-                              ),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      },
-                    );
-                  },
-                ),
+                        },
+                      ),
               ),
             ],
           ),
         ),
       ),
       floatingActionButton:
-      // For now upload uses placeholder; we’ll wire file picker next.
-      null,
+          // For now upload uses placeholder; we’ll wire file picker next.
+          null,
     );
   }
 
@@ -248,7 +298,7 @@ class _HomeworkPageState extends State<HomeworkPage> {
                   setState(() {
                     selectedSubject = v ?? 'All';
                   });
-                  _refresh();
+                  _watchHomeworks(currentClass);
                 },
               ),
             ),
@@ -275,7 +325,7 @@ class _HomeworkPageState extends State<HomeworkPage> {
                   setState(() {
                     selectedFileType = v ?? 'All';
                   });
-                  _refresh();
+                  _watchHomeworks(currentClass);
                 },
               ),
             ),
@@ -283,7 +333,7 @@ class _HomeworkPageState extends State<HomeworkPage> {
         ),
         const SizedBox(height: 10),
         Text(
-          'Showing ${selectedSubject == 'All' ? 'All subjects' : selectedSubject} • ${selectedFileType == 'All' ? 'All file types' : selectedFileType}',
+          'Class ${currentClass.label} - ${selectedSubject == 'All' ? 'All subjects' : selectedSubject} - ${selectedFileType == 'All' ? 'All file types' : selectedFileType}',
           style: TextStyle(color: primaryColor.withValues(alpha: 0.8)),
         ),
       ],
