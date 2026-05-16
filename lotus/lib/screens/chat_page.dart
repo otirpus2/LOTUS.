@@ -72,7 +72,7 @@ class _ChatPageState extends State<ChatPage> {
     // Fetch profiles for these users
     final profilesResponse = await Supabase.instance.client
         .from('profiles')
-        .select('id, first_name, last_name')
+        .select('id, full_name, username')
         .inFilter('id', userIds);
         
     final profilesMap = {for (var item in profilesResponse) item['id']: item};

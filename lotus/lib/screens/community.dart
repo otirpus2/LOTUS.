@@ -59,7 +59,7 @@ class _CommunityPageState
     try {
       final response = await Supabase.instance.client
           .from('friendships')
-          .select('*, sender:profiles!friendships_sender_id_fkey(id, first_name, last_name, student_id), receiver:profiles!friendships_receiver_id_fkey(id, first_name, last_name, student_id)')
+          .select('*, sender:profiles!friendships_sender_id_fkey(id, full_name, username, student_id), receiver:profiles!friendships_receiver_id_fkey(id, full_name, username, student_id)')
           .or('sender_id.eq.$currentUserId,receiver_id.eq.$currentUserId')
           .eq('status', 'accepted');
       
@@ -68,11 +68,10 @@ class _CommunityPageState
           dms = (response as List).map((row) {
             final isSender = row['sender_id'] == currentUserId;
             final friendProfile = isSender ? row['receiver'] : row['sender'];
-            final firstName = friendProfile['first_name'] ?? 'Unknown';
-            final lastName = friendProfile['last_name'] ?? '';
+            final fullName = friendProfile['full_name'] ?? friendProfile['username'] ?? 'Unknown';
             return {
               "id": friendProfile['id'],
-              "name": "$firstName $lastName".trim(),
+              "name": fullName,
               "student_id": friendProfile['student_id'] ?? '',
               "message": "Tap to chat",
               "time": "now",

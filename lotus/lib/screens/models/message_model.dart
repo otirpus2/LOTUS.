@@ -18,13 +18,12 @@ class MessageModel {
   factory MessageModel.fromJson(Map<String, dynamic> json, String currentUserId) {
     final senderId = json['user_id'] ?? json['sender_id'];
     final profile = json['profiles'] as Map<String, dynamic>?;
-    final firstName = profile?['first_name'] ?? 'Unknown';
-    final lastName = profile?['last_name'] ?? '';
+    final fullName = profile?['full_name'] ?? profile?['username'] ?? 'Unknown';
     
     return MessageModel(
       id: json['id'] as String,
       senderId: senderId as String,
-      senderName: '$firstName $lastName'.trim(),
+      senderName: fullName,
       message: json['content'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
       isMe: senderId == currentUserId,
