@@ -39,7 +39,7 @@ class _ChatPageState extends State<ChatPage> {
           .from('channel_messages')
           .stream(primaryKey: ['id'])
           .eq('channel_id', widget.channelId!)
-          .order('created_at')
+          .order('created_at', ascending: false)
           .listen((data) {
         _fetchProfilesAndMap(data);
       });
@@ -47,7 +47,7 @@ class _ChatPageState extends State<ChatPage> {
       _messagesSubscription = Supabase.instance.client
           .from('direct_messages')
           .stream(primaryKey: ['id'])
-          .order('created_at')
+          .order('created_at', ascending: false)
           .listen((data) {
         final filteredData = data.where((msg) {
           final sId = msg['sender_id'];
@@ -142,6 +142,7 @@ class _ChatPageState extends State<ChatPage> {
         children: [
           Expanded(
             child: ListView.builder(
+              reverse: true, // Latest messages at the bottom
               padding: const EdgeInsets.all(16),
               itemCount: messages.length,
               itemBuilder: (context, index) {
