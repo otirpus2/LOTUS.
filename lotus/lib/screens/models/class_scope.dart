@@ -1,58 +1,32 @@
 class ClassScope {
-  final int? classNumber;
-  final String className;
+  final String? classId;
+  final String? className;
   final String section;
 
-  const ClassScope({
-    required this.classNumber,
-    required this.className,
-    required this.section,
-  });
+  const ClassScope({required this.classId, required this.className, required this.section});
 
   factory ClassScope.fromProfile(Map<String, dynamic> map) {
-    final classValue = (map['class'] ?? '').toString().trim();
+    final classRoom = map['class_rooms'] as Map<String, dynamic>?;
     return ClassScope(
-      classNumber: _readClassNumber(classValue),
-      className: classValue,
-      section: (map['section'] ?? '').toString().trim(),
+      classId: map['class_id']?.toString(),
+      className: classRoom?['name']?.toString() ?? map['class']?.toString(),
+      section: (classRoom?['section'] ?? map['section'] ?? '').toString().trim(),
     );
   }
 
-  static int? _readClassNumber(dynamic value) {
-    if (value is int && value >= 1 && value <= 12) return value;
-
-    final parsed = int.tryParse((value ?? '').toString().trim());
-    if (parsed == null || parsed < 1 || parsed > 12) return null;
-    return parsed;
-  }
-
-  bool get isAssigned => className.isNotEmpty || classNumber != null;
-
-  String get classKey {
-    if (className.isNotEmpty) return _normalizeClass(className);
-    return classNumber?.toString() ?? '';
-  }
+  bool get isAssigned => classId != null || className != null;
 
   String get label {
-    final displayClass = className.isNotEmpty
-        ? className
-        : classNumber?.toString();
-    if (displayClass == null && section.isEmpty) return 'Unassigned class';
-    if (section.isEmpty) return displayClass ?? 'Unassigned class';
-    return '${displayClass ?? 'Unassigned class'} - $section';
+    if (!isAssigned) return 'Unassigned class';
+    if (section.isEmpty) return className ?? 'Unassigned class';
+    return '${className ?? 'Unassigned class'} - $section';
   }
 
   Map<String, dynamic> toHomeworkColumns() {
+    if (classId != null) {
+      return {'class_id': classId};
+    }
     return {'class_name': className, 'section': section};
-  }
-
-  bool matches({required String className, required String section}) {
-    final sameClass = classKey == _normalizeClass(className);
-    final sameSection =
-        this.section.isEmpty ||
-        section.isEmpty ||
-        this.section.toLowerCase() == section.toLowerCase();
-    return sameClass && sameSection;
   }
 
   static String _normalizeClass(String value) {
