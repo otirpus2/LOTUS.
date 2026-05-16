@@ -1,42 +1,31 @@
 class ClassScope {
-  final int? classNumber;
+  final String? classId;
+  final String? className;
   final String section;
 
-  const ClassScope({required this.classNumber, required this.section});
+  const ClassScope({required this.classId, required this.className, required this.section});
 
   factory ClassScope.fromProfile(Map<String, dynamic> map) {
+    final classRoom = map['class_rooms'] as Map<String, dynamic>?;
     return ClassScope(
-      classNumber: _readClassNumber(map['class']),
-      section: (map['section'] ?? '').toString().trim(),
+      classId: map['class_id']?.toString(),
+      className: classRoom?['name']?.toString() ?? map['class']?.toString(),
+      section: (classRoom?['section'] ?? map['section'] ?? '').toString().trim(),
     );
   }
 
-  static int? _readClassNumber(dynamic value) {
-    if (value is int && value >= 1 && value <= 12) return value;
-
-    final parsed = int.tryParse((value ?? '').toString().trim());
-    if (parsed == null || parsed < 1 || parsed > 12) return null;
-    return parsed;
-  }
-
-  bool get isAssigned => classNumber != null;
+  bool get isAssigned => classId != null || className != null;
 
   String get label {
-    if (classNumber == null && section.isEmpty) return 'Unassigned class';
-    if (section.isEmpty) return classNumber?.toString() ?? 'Unassigned class';
-    return '${classNumber ?? 'Unassigned class'} - $section';
+    if (!isAssigned) return 'Unassigned class';
+    if (section.isEmpty) return className ?? 'Unassigned class';
+    return '${className ?? 'Unassigned class'} - $section';
   }
 
   Map<String, dynamic> toHomeworkColumns() {
-    return {'class_number': classNumber, 'section': section};
-  }
-
-  bool matches({required int classNumber, required String section}) {
-    final sameClass = this.classNumber == classNumber;
-    final sameSection =
-        this.section.isEmpty ||
-        section.isEmpty ||
-        this.section.toLowerCase() == section.toLowerCase();
-    return sameClass && sameSection;
+    if (classId != null) {
+      return {'class_id': classId};
+    }
+    return {'class_name': className, 'section': section};
   }
 }

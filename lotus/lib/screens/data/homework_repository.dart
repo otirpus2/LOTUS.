@@ -74,7 +74,7 @@ class HomeworkRepository {
     }
 
     final storagePath =
-        'class_${classScope.classNumber}/${classScope.section}/${normalizeSubjectFolder(subject)}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+        'class_${classScope.className}/${classScope.section}/${normalizeSubjectFolder(subject)}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
 
     final file = File(localPath);
     if (!await file.exists()) {
@@ -111,7 +111,7 @@ class HomeworkRepository {
       subtitle:
           '${classScope.label} - Subject: $subject - ${fileType.toUpperCase()} file: $fileName',
       homeworkId: homework.id,
-      classNumber: classScope.classNumber!,
+      classNumber: int.tryParse(classScope.className ?? '') ?? 0,
       section: classScope.section,
     );
 
@@ -130,11 +130,13 @@ class HomeworkRepository {
       return const <HomeworkModel>[];
     }
 
-    final res = await _supabase
-        .from('homework')
-        .select('*')
-        .eq('class_number', scope.classNumber!)
-        .order('created_at', ascending: false);
+    var query = _supabase.from('homework').select('*');
+    if (scope.classId != null) {
+      query = query.eq('class_id', scope.classId!);
+    } else {
+      query = query.eq('class_name', scope.className!);
+    }
+    final res = await query.order('created_at', ascending: false);
 
     final data = res as List<dynamic>;
 

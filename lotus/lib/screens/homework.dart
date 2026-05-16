@@ -29,7 +29,7 @@ class _HomeworkPageState extends State<HomeworkPage> {
   bool isLoading = true;
   String? error;
 
-  ClassScope currentClass = const ClassScope(classNumber: null, section: '');
+  ClassScope currentClass = const ClassScope(classId: null, className: null, section: '');
   List<HomeworkModel> homeworks = [];
   StreamSubscription<ClassScope>? _classSubscription;
   StreamSubscription<List<HomeworkModel>>? _homeworkSubscription;

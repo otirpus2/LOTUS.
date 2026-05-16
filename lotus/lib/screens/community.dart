@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'chat_page.dart';
 import 'models/server_model.dart';
 import 'server_page.dart';
@@ -17,42 +19,73 @@ class CommunityPage extends StatefulWidget {
 class _CommunityPageState
     extends State<CommunityPage> {
   int selectedServer = 0;
+  bool isLoadingServers = true;
+  bool isLoadingFriends = true;
+  List<ServerModel> servers = [];
+  List<Map<String, dynamic>> dms = [];
 
-  final List<ServerModel> servers = [
-    ServerModel(
-      name: "12A",
-      channels: [
-        "general",
-        "homework",
-        "announcements",
-        "doubts",
-      ],
-    ),
+  @override
+  void initState() {
+    super.initState();
+    _fetchServers();
+    _fetchFriends();
+  }
 
-    ServerModel(
-      name: "IIT Club",
-      channels: [
-        "jee",
-        "resources",
-        "tests",
-      ],
-    ),
-  ];
+  Future<void> _fetchServers() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('servers')
+          .select()
+          .order('created_at');
+      
+      if (mounted) {
+        setState(() {
+          servers = (response as List).map((e) => ServerModel.fromJson(e)).toList();
+          isLoadingServers = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => isLoadingServers = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading servers: $e')),
+        );
+      }
+    }
+  }
 
-  List<Map<String, dynamic>> dms = [
-    {
-      "name": "Aryan Sharma",
-      "message": "send notes pls",
-      "time": "2m",
-      "online": true,
-    },
-    {
-      "name": "Riya Verma",
-      "message": "teacher uploaded pdf",
-      "time": "5m",
-      "online": false,
-    },
-  ];
+  Future<void> _fetchFriends() async {
+    final currentUserId = Supabase.instance.client.auth.currentUser!.id;
+    try {
+      final response = await Supabase.instance.client
+          .from('friendships')
+          .select('*, sender:profiles!friendships_sender_id_fkey(id, first_name, last_name, student_id), receiver:profiles!friendships_receiver_id_fkey(id, first_name, last_name, student_id)')
+          .or('sender_id.eq.$currentUserId,receiver_id.eq.$currentUserId')
+          .eq('status', 'accepted');
+      
+      if (mounted) {
+        setState(() {
+          dms = (response as List).map((row) {
+            final isSender = row['sender_id'] == currentUserId;
+            final friendProfile = isSender ? row['receiver'] : row['sender'];
+            final firstName = friendProfile['first_name'] ?? 'Unknown';
+            final lastName = friendProfile['last_name'] ?? '';
+            return {
+              "id": friendProfile['id'],
+              "name": "$firstName $lastName".trim(),
+              "student_id": friendProfile['student_id'] ?? '',
+              "message": "Tap to chat",
+              "time": "now",
+              "online": true,
+            };
+          }).toList();
+          isLoadingFriends = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => isLoadingFriends = false);
+    }
+  }
 
   void _showAddFriendDialog() {
     final TextEditingController nameController = TextEditingController();
@@ -71,7 +104,7 @@ class _CommunityPageState
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "Enter your friend's name to start a conversation.",
+                "Enter your friend's unique Student ID.",
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
               const SizedBox(height: 20),
@@ -79,8 +112,8 @@ class _CommunityPageState
                 controller: nameController,
                 autofocus: true,
                 decoration: InputDecoration(
-                  hintText: "Full Name",
-                  prefixIcon: const Icon(Icons.person, color: Color(0xFF5B4CF0)),
+                  hintText: "Student ID",
+                  prefixIcon: const Icon(Icons.badge, color: Color(0xFF5B4CF0)),
                   filled: true,
                   fillColor: const Color(0xFFF5F7FF),
                   border: OutlineInputBorder(
@@ -129,17 +162,37 @@ class _CommunityPageState
             ),
             const SizedBox(width: 8),
             ElevatedButton(
-              onPressed: () {
-                if (nameController.text.trim().isNotEmpty) {
-                  setState(() {
-                    dms.insert(0, {
-                      "name": nameController.text.trim(),
-                      "message": "Hey! Let's chat.",
-                      "time": "now",
-                      "online": true,
-                    });
-                  });
+              onPressed: () async {
+                final studentId = nameController.text.trim();
+                if (studentId.isNotEmpty) {
                   Navigator.pop(context);
+                  final currentUserId = Supabase.instance.client.auth.currentUser!.id;
+                  try {
+                    final profileResponse = await Supabase.instance.client
+                        .from('profiles')
+                        .select('id')
+                        .eq('student_id', studentId)
+                        .maybeSingle();
+
+                    if (profileResponse == null) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Student ID not found")));
+                      return;
+                    }
+
+                    await Supabase.instance.client.from('friendships').insert({
+                      'sender_id': currentUserId,
+                      'receiver_id': profileResponse['id'],
+                      'status': 'accepted',
+                    });
+                    
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Friend added!")));
+                    _fetchFriends();
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error adding friend")));
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -209,35 +262,27 @@ class _CommunityPageState
                   ),
 
                   Expanded(
-                    child: ListView.builder(
-                      itemCount:
-                      servers.length,
-
-                      itemBuilder:
-                          (context, index) {
-                        return ServerTile(
-                          icon:
-                          Icons.school,
-                          active:
-                          selectedServer ==
-                              index +
-                                  1,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    ServerPage(
-                                      server:
-                                      servers[
-                                      index],
+                    child: isLoadingServers
+                        ? const Center(child: CircularProgressIndicator(color: Color(0xFF5B4CF0)))
+                        : ListView.builder(
+                            itemCount: servers.length,
+                            itemBuilder: (context, index) {
+                              return ServerTile(
+                                icon: Icons.school,
+                                active: selectedServer == index + 1,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ServerPage(
+                                        server: servers[index],
+                                      ),
                                     ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
                   ),
 
                   GestureDetector(
@@ -351,37 +396,33 @@ class _CommunityPageState
                   const SizedBox(height: 12),
 
                   Expanded(
-                    child: ListView.builder(
-                      itemCount:
-                      dms.length,
-
-                      itemBuilder:
-                          (context, index) {
-                        final dm =
-                        dms[index];
-
-                        return DmTile(
-                          name: dm["name"],
-                          message:
-                          dm["message"],
-                          time: dm["time"],
-                          online:
-                          dm["online"],
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    ChatPage(
-                                      title:
-                                      dm["name"],
-                                    ),
+                    child: isLoadingFriends
+                        ? const Center(child: CircularProgressIndicator(color: Color(0xFF5B4CF0)))
+                        : dms.isEmpty
+                            ? const Center(child: Text("No friends yet. Add one using their Student ID!", style: TextStyle(color: Colors.grey)))
+                            : ListView.builder(
+                                itemCount: dms.length,
+                                itemBuilder: (context, index) {
+                                  final dm = dms[index];
+                                  return DmTile(
+                                    name: dm["name"],
+                                    message: dm["message"],
+                                    time: dm["time"],
+                                    online: dm["online"],
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ChatPage(
+                                            title: dm["name"],
+                                            receiverId: dm["id"],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
                               ),
-                            );
-                          },
-                        );
-                      },
-                    ),
                   ),
                 ],
               ),

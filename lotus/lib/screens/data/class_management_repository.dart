@@ -20,12 +20,12 @@ class ClassManagementRepository {
   Future<ClassScope> getCurrentClassScope() async {
     final row = await _supabase
         .from('profiles')
-        .select('class, section')
+        .select('class, section, class_id, class_rooms(name, section)')
         .eq('id', _currentUserId)
         .maybeSingle();
 
     if (row == null) {
-      return const ClassScope(classNumber: null, section: '');
+      return const ClassScope(classId: null, className: null, section: '');
     }
 
     return ClassScope.fromProfile(row);
@@ -38,12 +38,22 @@ class ClassManagementRepository {
         .from('profiles')
         .stream(primaryKey: ['id'])
         .eq('id', userId)
-        .map((rows) {
+        .asyncMap((rows) async {
           if (rows.isEmpty) {
-            return const ClassScope(classNumber: null, section: '');
+            return const ClassScope(classId: null, className: null, section: '');
           }
-
-          return ClassScope.fromProfile(rows.first);
+          final row = rows.first;
+          
+          if (row['class_id'] != null) {
+            final classRoom = await _supabase
+                .from('class_rooms')
+                .select('name, section')
+                .eq('id', row['class_id'])
+                .maybeSingle();
+            row['class_rooms'] = classRoom;
+          }
+          
+          return ClassScope.fromProfile(row);
         });
   }
 
@@ -56,14 +66,21 @@ class ClassManagementRepository {
       return Stream.value(const <HomeworkModel>[]);
     }
 
-    return _supabase
-        .from('homework')
-        .stream(primaryKey: ['id'])
-        .eq('class_number', scope.classNumber!)
-        .order('created_at', ascending: false)
+    dynamic query = _supabase.from('homework').stream(primaryKey: ['id']);
+    
+    if (scope.classId != null) {
+       query = query.eq('class_id', scope.classId!);
+    } else if (scope.className != null) {
+       // Fallback for legacy data
+       query = query.eq('class_name', scope.className!);
+    }
+
+    return (query as SupabaseStreamBuilder).order('created_at', ascending: false)
         .map((rows) {
           return rows.map(HomeworkModel.fromMap).where((homework) {
-            final sectionOk =
+            // If we use classId, section matching might be implicit to the class_room, 
+            // but we'll leave the fallback check just in case.
+            final sectionOk = scope.classId != null ||
                 scope.section.isEmpty ||
                 homework.section.isEmpty ||
                 homework.section == scope.section;
