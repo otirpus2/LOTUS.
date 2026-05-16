@@ -25,7 +25,7 @@ class ClassManagementRepository {
         .maybeSingle();
 
     if (row == null) {
-      return const ClassScope(classNumber: null, section: '');
+      return const ClassScope(classNumber: null, className: '', section: '');
     }
 
     return ClassScope.fromProfile(row);
@@ -40,7 +40,11 @@ class ClassManagementRepository {
         .eq('id', userId)
         .map((rows) {
           if (rows.isEmpty) {
-            return const ClassScope(classNumber: null, section: '');
+            return const ClassScope(
+              classNumber: null,
+              className: '',
+              section: '',
+            );
           }
 
           return ClassScope.fromProfile(rows.first);
@@ -59,10 +63,15 @@ class ClassManagementRepository {
     return _supabase
         .from('homework')
         .stream(primaryKey: ['id'])
-        .eq('class_number', scope.classNumber!)
         .order('created_at', ascending: false)
         .map((rows) {
           return rows.map(HomeworkModel.fromMap).where((homework) {
+            final classOk =
+                homework.className.isEmpty ||
+                scope.matches(
+                  className: homework.className,
+                  section: homework.section,
+                );
             final sectionOk =
                 scope.section.isEmpty ||
                 homework.section.isEmpty ||
@@ -75,7 +84,7 @@ class ClassManagementRepository {
                 fileType == null ||
                 fileType == 'All' ||
                 homework.fileType == fileType;
-            return sectionOk && subjectOk && fileTypeOk;
+            return classOk && sectionOk && subjectOk && fileTypeOk;
           }).toList();
         });
   }

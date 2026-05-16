@@ -37,20 +37,6 @@ class HomeworkRepository {
     return _folderSubjects.containsKey(normalized) ? normalized : 'general';
   }
 
-  Future<bool> isAdmin() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return false;
-
-    final res = await _supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .maybeSingle();
-
-    if (res == null) return false;
-    return (res['is_admin'] as bool?) ?? false;
-  }
-
   Future<HomeworkModel> uploadHomeworkFile({
     required String fileName,
     required String subject,
@@ -74,7 +60,7 @@ class HomeworkRepository {
     }
 
     final storagePath =
-        'class_${classScope.classNumber}/${classScope.section}/${normalizeSubjectFolder(subject)}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+        'class_${classScope.classKey}/${classScope.section}/${normalizeSubjectFolder(subject)}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
 
     final file = File(localPath);
     if (!await file.exists()) {
@@ -111,7 +97,7 @@ class HomeworkRepository {
       subtitle:
           '${classScope.label} - Subject: $subject - ${fileType.toUpperCase()} file: $fileName',
       homeworkId: homework.id,
-      classNumber: classScope.classNumber!,
+      className: classScope.className,
       section: classScope.section,
     );
 
@@ -133,7 +119,6 @@ class HomeworkRepository {
     final res = await _supabase
         .from('homework')
         .select('*')
-        .eq('class_number', scope.classNumber!)
         .order('created_at', ascending: false);
 
     final data = res as List<dynamic>;
@@ -149,7 +134,10 @@ class HomeworkRepository {
               scope.section.isEmpty ||
               h.section.isEmpty ||
               h.section == scope.section;
-          return subjectOk && fileTypeOk && sectionOk;
+          final classOk =
+              h.className.isEmpty ||
+              scope.matches(className: h.className, section: h.section);
+          return subjectOk && fileTypeOk && sectionOk && classOk;
         })
         .toList();
   }

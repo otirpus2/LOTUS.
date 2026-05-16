@@ -29,10 +29,11 @@ class _HomeworkPageState extends State<HomeworkPage> {
   bool isLoading = true;
   String? error;
 
-  bool isAdmin = false;
-  bool isCheckingAdmin = true;
-
-  ClassScope currentClass = const ClassScope(classNumber: null, section: '');
+  ClassScope currentClass = const ClassScope(
+    classNumber: null,
+    className: '',
+    section: '',
+  );
   List<HomeworkModel> homeworks = [];
   StreamSubscription<ClassScope>? _classSubscription;
   StreamSubscription<List<HomeworkModel>>? _homeworkSubscription;
@@ -62,30 +63,16 @@ class _HomeworkPageState extends State<HomeworkPage> {
 
   Future<void> _bootstrap() async {
     setState(() {
-      isCheckingAdmin = true;
       isLoading = true;
       error = null;
     });
 
     try {
-      final admin = await _repo.isAdmin();
-
-      setState(() {
-        isAdmin = admin;
-        isCheckingAdmin = false;
-      });
-
       _watchClassScope();
     } catch (e) {
       setState(() {
         error = e.toString();
       });
-    } finally {
-      if (mounted) {
-        setState(() {
-          isCheckingAdmin = false;
-        });
-      }
     }
   }
 
@@ -187,12 +174,6 @@ class _HomeworkPageState extends State<HomeworkPage> {
             children: [
               _buildFilters(primaryColor),
               const SizedBox(height: 16),
-              if (isAdmin && !isCheckingAdmin) _buildAdminUploadCard(),
-              if (isCheckingAdmin)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
               if (error != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
@@ -259,9 +240,7 @@ class _HomeworkPageState extends State<HomeworkPage> {
           ),
         ),
       ),
-      floatingActionButton:
-          // For now upload uses placeholder; we’ll wire file picker next.
-          null,
+      floatingActionButton: null,
     );
   }
 
@@ -337,59 +316,6 @@ class _HomeworkPageState extends State<HomeworkPage> {
           style: TextStyle(color: primaryColor.withValues(alpha: 0.8)),
         ),
       ],
-    );
-  }
-
-  Widget _buildAdminUploadCard() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 8, bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Admin Upload',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Upload a homework file (PDF, DOC/DOCX, XLS/XLSX).',
-            style: TextStyle(fontSize: 13, color: Colors.grey),
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4F46E5),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            ),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Upload UI placeholder - wired next step.'),
-                ),
-              );
-            },
-            icon: const Icon(Icons.upload_file_rounded),
-            label: const Text('Upload Homework'),
-          ),
-        ],
-      ),
     );
   }
 }

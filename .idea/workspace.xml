@@ -5,7 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="780a64d6-8e5a-4f77-ab00-8348c21ad8f2" name="Changes" comment="linked alerts and to-do list with supabase">
-      <change beforePath="$PROJECT_DIR$/lotus/supabase_class_management.sql" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lotus/lib/screens/data/class_management_repository.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/lib/screens/data/class_management_repository.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lotus/lib/screens/data/homework_repository.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/lib/screens/data/homework_repository.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lotus/lib/screens/data/notificiation_services.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/lib/screens/data/notificiation_services.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lotus/lib/screens/homework.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/lib/screens/homework.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lotus/lib/screens/models/class_scope.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/lib/screens/models/class_scope.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lotus/lib/screens/models/homework_model.dart" beforeDir="false" afterPath="$PROJECT_DIR$/lotus/lib/screens/models/homework_model.dart" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

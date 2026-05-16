@@ -10,15 +10,12 @@ class NotificationService {
     required String title,
     required String subtitle,
     required String homeworkId,
-    required int classNumber,
+    required String className,
     String section = '',
   }) async {
     final authUser = _supabase.auth.currentUser;
 
-    var query = _supabase
-        .from('profiles')
-        .select('id')
-        .eq('class', classNumber);
+    var query = _supabase.from('profiles').select('id').eq('class', className);
 
     if (section.trim().isNotEmpty) {
       query = query.eq('section', section.trim());
@@ -36,7 +33,7 @@ class NotificationService {
         'subtitle': subtitle,
         'type': 'homework_uploaded',
         'homework_id': homeworkId,
-        'class_number': classNumber,
+        'class_name': className,
         'section': section.trim(),
         'created_at': DateTime.now().toIso8601String(),
         'created_by': authUser?.id,
