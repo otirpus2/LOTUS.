@@ -1,10 +1,12 @@
 class CalendarAudienceScope {
   final String userId;
+  final String? classId;
   final String className;
   final String section;
 
   const CalendarAudienceScope({
     required this.userId,
+    required this.classId,
     required this.className,
     required this.section,
   });
@@ -13,10 +15,12 @@ class CalendarAudienceScope {
     required String userId,
     required Map<String, dynamic>? map,
   }) {
+    final classRoom = map?['class_rooms'] as Map<String, dynamic>?;
     return CalendarAudienceScope(
       userId: userId,
-      className: (map?['class'] ?? '').toString().trim(),
-      section: (map?['section'] ?? '').toString().trim(),
+      classId: map?['class_id']?.toString(),
+      className: classRoom?['name']?.toString() ?? '',
+      section: (classRoom?['section'] ?? '').toString().trim(),
     );
   }
 
@@ -25,8 +29,6 @@ class CalendarAudienceScope {
     if (section.isEmpty) return className;
     return '$className - $section';
   }
-
-  String get classKey => normalizeCalendarClass(className);
 }
 
 class CalendarEvent {
@@ -35,8 +37,7 @@ class CalendarEvent {
   final String description;
   final DateTime eventDate;
   final String colorHex;
-  final String className;
-  final String section;
+  final String? classId;
   final List<String> targetStudentIds;
   final String? createdBy;
   final DateTime? createdAt;
@@ -48,8 +49,7 @@ class CalendarEvent {
     required this.description,
     required this.eventDate,
     required this.colorHex,
-    required this.className,
-    required this.section,
+    required this.classId,
     required this.targetStudentIds,
     required this.createdBy,
     required this.createdAt,
@@ -63,12 +63,7 @@ class CalendarEvent {
       description: (map['description'] ?? '').toString(),
       eventDate: _readDate(map['event_date']),
       colorHex: _readColor(map['color_hex']),
-      className:
-          _readOptionalText(
-            map['class_name'] ?? map['class'] ?? map['class_number'],
-          ) ??
-          '',
-      section: (map['section'] ?? '').toString().trim(),
+      classId: map['class_id']?.toString(),
       targetStudentIds: _readStringList(map['target_student_ids']),
       createdBy: _readOptionalText(map['created_by']),
       createdAt: _readOptionalDateTime(map['created_at']),
@@ -82,9 +77,8 @@ class CalendarEvent {
 
   String get audienceLabel {
     if (isStudentEvent) return 'For you';
-    if (className.isEmpty) return 'Common event';
-    if (section.isEmpty) return 'Class $className';
-    return 'Class $className - $section';
+    if (classId == null) return 'Common event';
+    return 'Class Event';
   }
 
   bool isVisibleFor(CalendarAudienceScope audience) {
@@ -92,31 +86,13 @@ class CalendarEvent {
       return targetStudentIds.contains(audience.userId);
     }
 
-    if (className.isEmpty) return true;
-    if (audience.classKey != normalizeCalendarClass(className)) return false;
-    if (section.isEmpty) return true;
-    if (audience.section.isEmpty) return false;
-    return audience.section.toLowerCase() == section.toLowerCase();
+    if (classId == null) return true;
+    return audience.classId == classId;
   }
 }
 
 String formatCalendarDate(DateTime date) {
   return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-}
-
-String normalizeCalendarClass(String value) {
-  final text = value.trim().toLowerCase();
-  if (text.isEmpty) return '';
-
-  final parsed = int.tryParse(text);
-  if (parsed != null) return parsed.toString();
-
-  final numberMatch = RegExp(r'\d+').firstMatch(text);
-  if (numberMatch != null) {
-    return int.parse(numberMatch.group(0)!).toString();
-  }
-
-  return text;
 }
 
 String? _readOptionalText(dynamic value) {

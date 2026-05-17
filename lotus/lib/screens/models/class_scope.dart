@@ -9,12 +9,12 @@ class ClassScope {
     final classRoom = map['class_rooms'] as Map<String, dynamic>?;
     return ClassScope(
       classId: map['class_id']?.toString(),
-      className: classRoom?['name']?.toString() ?? map['class']?.toString(),
-      section: (classRoom?['section'] ?? map['section'] ?? '').toString().trim(),
+      className: classRoom?['name']?.toString() ?? '',
+      section: (classRoom?['section'] ?? '').toString().trim(),
     );
   }
 
-  bool get isAssigned => classId != null || className != null;
+  bool get isAssigned => classId != null;
 
   String get label {
     if (!isAssigned) return 'Unassigned class';
@@ -23,24 +23,6 @@ class ClassScope {
   }
 
   Map<String, dynamic> toHomeworkColumns() {
-    if (classId != null) {
-      return {'class_id': classId};
-    }
-    return {};
-  }
-
-  static String _normalizeClass(String value) {
-    final text = value.trim().toLowerCase();
-    if (text.isEmpty) return '';
-
-    final parsed = int.tryParse(text);
-    if (parsed != null) return parsed.toString();
-
-    final numberMatch = RegExp(r'\d+').firstMatch(text);
-    if (numberMatch != null) {
-      return int.parse(numberMatch.group(0)!).toString();
-    }
-
-    return text;
+    return {'class_id': classId};
   }
 }

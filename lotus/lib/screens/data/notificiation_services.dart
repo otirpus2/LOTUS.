@@ -10,18 +10,14 @@ class NotificationService {
     required String title,
     required String subtitle,
     required String homeworkId,
-    required String className,
-    String section = '',
+    required String classId,
   }) async {
     final authUser = _supabase.auth.currentUser;
 
-    var query = _supabase.from('profiles').select('id').eq('class', className);
-
-    if (section.trim().isNotEmpty) {
-      query = query.eq('section', section.trim());
-    }
-
-    final profiles = await query.order('id', ascending: true);
+    final profiles = await _supabase
+        .from('profiles')
+        .select('id')
+        .eq('class_id', classId);
 
     final List<dynamic> rows = profiles as List<dynamic>;
 
@@ -32,9 +28,8 @@ class NotificationService {
         'title': title,
         'subtitle': subtitle,
         'type': 'homework_uploaded',
-        'homework_id': homeworkId,
-        'class_name': className,
-        'section': section.trim(),
+        'entity_type': 'homework',
+        'entity_id': homeworkId,
         'created_at': DateTime.now().toIso8601String(),
         'created_by': authUser?.id,
       });

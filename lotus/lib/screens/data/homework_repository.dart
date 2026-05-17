@@ -60,7 +60,7 @@ class HomeworkRepository {
     }
 
     final storagePath =
-        'class_${classScope.className}/${classScope.section}/${normalizeSubjectFolder(subject)}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+        'class_${classScope.classId}/${normalizeSubjectFolder(subject)}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
 
     final file = File(localPath);
     if (!await file.exists()) {
@@ -81,7 +81,7 @@ class HomeworkRepository {
           'file_name': fileName,
           'storage_path': storagePath,
           'uploaded_by': user.id,
-          ...classScope.toHomeworkColumns(),
+          'class_id': classScope.classId,
         }, onConflict: 'storage_path')
         .select()
         .maybeSingle();
@@ -97,8 +97,7 @@ class HomeworkRepository {
       subtitle:
           '${classScope.label} - Subject: $subject - ${fileType.toUpperCase()} file: $fileName',
       homeworkId: homework.id,
-      classNumber: int.tryParse(classScope.className ?? '') ?? 0,
-      section: classScope.section,
+      classId: classScope.classId!,
     );
 
     return homework;
@@ -109,19 +108,14 @@ class HomeworkRepository {
     String? fileType, // normalized pdf/doc/excel
     ClassScope? classScope,
   }) async {
-    await syncStorageMetadata();
-
     final scope = classScope ?? await _classRepository.getCurrentClassScope();
     if (!scope.isAssigned) {
       return const <HomeworkModel>[];
     }
 
-    var query = _supabase.from('homework').select('*, class_rooms!inner(name, section)');
-    if (scope.classId != null) {
-      query = query.eq('class_id', scope.classId!);
-    } else if (scope.className != null) {
-      query = query.eq('class_rooms.name', scope.className!);
-    }
+    var query = _supabase.from('homework').select('*');
+    query = query.eq('class_id', scope.classId!);
+    
     final res = await query.order('created_at', ascending: false);
 
     final data = res as List<dynamic>;
@@ -133,30 +127,9 @@ class HomeworkRepository {
               subject == null || subject == 'All' || h.subject == subject;
           final fileTypeOk =
               fileType == null || fileType == 'All' || h.fileType == fileType;
-          final sectionOk =
-              scope.section.isEmpty ||
-              h.section.isEmpty ||
-              h.section == scope.section;
-          final classOk =
-              h.className.isEmpty ||
-              scope.matches(className: h.className, section: h.section);
-          return subjectOk && fileTypeOk && sectionOk && classOk;
+          return subjectOk && fileTypeOk;
         })
         .toList();
-  }
-
-  Future<void> syncStorageMetadata() async {
-    try {
-      // The SQL file creates this RPC. It backfills table rows for files that
-      // were uploaded directly in Supabase Storage before/without app upload.
-      await _supabase.rpc('sync_homework_storage');
-    } on PostgrestException catch (e) {
-      if (e.code == '42883' || e.message.contains('sync_homework_storage')) {
-        return;
-      }
-
-      rethrow;
-    }
   }
 
   String getFileUrl({required String storagePath}) {

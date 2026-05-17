@@ -7,6 +7,7 @@ import 'models/server_model.dart';
 import 'server_page.dart';
 import 'widgets/dm_tile.dart';
 import 'widgets/server_tile.dart';
+import 'friends_page.dart';
 
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key});
@@ -55,7 +56,10 @@ class _CommunityPageState
   }
 
   Future<void> _fetchFriends() async {
-    final currentUserId = Supabase.instance.client.auth.currentUser!.id;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    final currentUserId = user.id;
+    
     try {
       final response = await Supabase.instance.client
           .from('friendships')
@@ -68,7 +72,19 @@ class _CommunityPageState
           dms = (response as List).map((row) {
             final isSender = row['sender_id'] == currentUserId;
             final friendProfile = isSender ? row['receiver'] : row['sender'];
-            final fullName = friendProfile['full_name'] ?? friendProfile['username'] ?? 'Unknown';
+            
+            if (friendProfile == null) {
+              return {
+                "id": isSender ? row['receiver_id'] : row['sender_id'],
+                "name": "Hidden Profile (RLS)",
+                "student_id": "",
+                "message": "Update RLS to see name",
+                "time": "",
+                "online": false,
+              };
+            }
+
+            final fullName = friendProfile['username'] ?? friendProfile['full_name'] ?? 'Unknown';
             return {
               "id": friendProfile['id'],
               "name": fullName,
@@ -82,7 +98,13 @@ class _CommunityPageState
         });
       }
     } catch (e) {
-      if (mounted) setState(() => isLoadingFriends = false);
+      debugPrint('Error fetching friends: $e');
+      if (mounted) {
+        setState(() => isLoadingFriends = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading friends: $e')),
+        );
+      }
     }
   }
 
@@ -344,7 +366,14 @@ class _CommunityPageState
                         const Spacer(),
 
                         GestureDetector(
-                          onTap: _showAddFriendDialog,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const FriendsPage(),
+                              ),
+                            );
+                          },
                           child: Container(
                             height: 44,
                             width: 44,
@@ -353,7 +382,7 @@ class _CommunityPageState
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: const Icon(
-                              Icons.person_add,
+                              Icons.people_alt_outlined,
                             ),
                           ),
                         ),

@@ -23,8 +23,21 @@ class CalendarRepository {
         .from('profiles')
         .stream(primaryKey: ['id'])
         .eq('id', userId)
-        .map((rows) {
-          final row = rows.isEmpty ? null : rows.first;
+        .asyncMap((rows) async {
+          if (rows.isEmpty) {
+             return CalendarAudienceScope.fromProfile(userId: userId, map: null);
+          }
+          final row = rows.first;
+          
+          if (row['class_id'] != null) {
+            final classRoom = await _supabase
+                .from('class_rooms')
+                .select('name, section')
+                .eq('id', row['class_id'])
+                .maybeSingle();
+            row['class_rooms'] = classRoom;
+          }
+
           return CalendarAudienceScope.fromProfile(userId: userId, map: row);
         });
   }

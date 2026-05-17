@@ -68,22 +68,11 @@ class ClassManagementRepository {
 
     dynamic query = _supabase.from('homework').stream(primaryKey: ['id']);
     
-    if (scope.classId != null) {
-       query = query.eq('class_id', scope.classId!);
-    } else if (scope.className != null) {
-       // Fallback for legacy data
-       query = query.eq('class_name', scope.className!);
-    }
+    query = query.eq('class_id', scope.classId!);
 
     return (query as SupabaseStreamBuilder).order('created_at', ascending: false)
         .map((rows) {
           return rows.map(HomeworkModel.fromMap).where((homework) {
-            // If we use classId, section matching might be implicit to the class_room, 
-            // but we'll leave the fallback check just in case.
-            final sectionOk = scope.classId != null ||
-                scope.section.isEmpty ||
-                homework.section.isEmpty ||
-                homework.section == scope.section;
             final subjectOk =
                 subject == null ||
                 subject == 'All' ||
@@ -92,7 +81,7 @@ class ClassManagementRepository {
                 fileType == null ||
                 fileType == 'All' ||
                 homework.fileType == fileType;
-            return classOk && sectionOk && subjectOk && fileTypeOk;
+            return subjectOk && fileTypeOk;
           }).toList();
         });
   }
