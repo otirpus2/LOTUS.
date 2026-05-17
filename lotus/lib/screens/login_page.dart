@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'home.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/push_notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -226,6 +227,9 @@ class _LoginPageState extends State<LoginPage> {
                           if (res.user != null) {
                             final prefs = await SharedPreferences.getInstance();
                             await prefs.setBool('isLoggedIn', true);
+
+                            // Initialize Push Notifications
+                            await PushNotificationService.initialize();
 
                             if (context.mounted) {
                               Navigator.pushReplacement(

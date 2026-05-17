@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 
 class NotificationService {
   NotificationService({SupabaseClient? supabase})
@@ -6,46 +7,113 @@ class NotificationService {
 
   final SupabaseClient _supabase;
 
+  /// Generic method to create notifications for one or more users
+  Future<void> createNotifications({
+    required List<String> targetUserIds,
+    required String title,
+    required String subtitle,
+    required String type,
+    String? entityType,
+    String? entityId,
+  }) async {
+    if (targetUserIds.isEmpty) return;
+
+    final authUser = _supabase.auth.currentUser;
+    final timestamp = DateTime.now().toUtc().toIso8601String();
+
+    final List<Map<String, dynamic>> inserts = targetUserIds.map((userId) {
+      return {
+        'user_id': userId,
+        'title': title,
+        'subtitle': subtitle,
+        'type': type,
+        'entity_type': entityType,
+        'entity_id': entityId,
+        'is_read': false,
+        'created_at': timestamp,
+        'created_by': authUser?.id,
+      };
+    }).toList();
+
+    try {
+      const int chunkSize = 50;
+      for (var i = 0; i < inserts.length; i += chunkSize) {
+        final chunk = inserts.sublist(
+          i,
+          (i + chunkSize) > inserts.length ? inserts.length : (i + chunkSize),
+        );
+        await _supabase.from('notifications').insert(chunk);
+      }
+    } catch (e) {
+      debugPrint('Error creating notifications: $e');
+    }
+  }
+
+  /// Specific helper for homework
   Future<void> createHomeworkNotifications({
     required String title,
     required String subtitle,
     required String homeworkId,
     required String classId,
   }) async {
-    final authUser = _supabase.auth.currentUser;
-
     final profiles = await _supabase
         .from('profiles')
         .select('id')
         .eq('class_id', classId);
 
-    final List<dynamic> rows = profiles as List<dynamic>;
+    final List<String> ids = (profiles as List).map((row) => row['id'] as String).toList();
+    
+    await createNotifications(
+      targetUserIds: ids,
+      title: title,
+      subtitle: subtitle,
+      type: 'homework_uploaded',
+      entityType: 'homework',
+      entityId: homeworkId,
+    );
+  }
 
-    final inserts = <Map<String, dynamic>>[];
-    for (final row in rows) {
-      inserts.add({
-        'user_id': row['id'],
-        'title': title,
-        'subtitle': subtitle,
-        'type': 'homework_uploaded',
-        'entity_type': 'homework',
-        'entity_id': homeworkId,
-        'created_at': DateTime.now().toIso8601String(),
-        'created_by': authUser?.id,
-      });
-    }
+  /// Specific helper for friend requests
+  Future<void> createFriendRequestNotification({
+    required String receiverId,
+    required String senderName,
+  }) async {
+    await createNotifications(
+      targetUserIds: [receiverId],
+      title: 'New Friend Request',
+      subtitle: '$senderName sent you a friend request.',
+      type: 'friend_request',
+      entityType: 'friendship',
+    );
+  }
 
-    if (inserts.isEmpty) return;
+  /// Specific helper for new messages
+  Future<void> createMessageNotification({
+    required String receiverId,
+    required String senderName,
+    required String messageContent,
+  }) async {
+    await createNotifications(
+      targetUserIds: [receiverId],
+      title: 'New Message from $senderName',
+      subtitle: messageContent,
+      type: 'new_message',
+      entityType: 'chat',
+    );
+  }
 
-    // Insert in chunks to avoid request size limits.
-    const int chunkSize = 50;
-    for (var i = 0; i < inserts.length; i += chunkSize) {
-      final chunk = inserts.sublist(
-        i,
-        (i + chunkSize) > inserts.length ? inserts.length : (i + chunkSize),
-      );
-
-      await _supabase.from('notifications').insert(chunk);
-    }
+  /// Specific helper for alerts (Reports/Test Results/Warnings)
+  Future<void> createAlertNotification({
+    required List<String> targetUserIds,
+    required String title,
+    required String subtitle,
+    required String type, // 'report_warning', 'test_result'
+  }) async {
+    await createNotifications(
+      targetUserIds: targetUserIds,
+      title: title,
+      subtitle: subtitle,
+      type: type,
+    );
   }
 }

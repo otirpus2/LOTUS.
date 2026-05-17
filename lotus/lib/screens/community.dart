@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
 import 'chat_page.dart';
 import 'models/server_model.dart';
@@ -24,12 +25,34 @@ class _CommunityPageState
   bool isLoadingFriends = true;
   List<ServerModel> servers = [];
   List<Map<String, dynamic>> dms = [];
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
     super.initState();
     _fetchServers();
     _fetchFriends();
+    _setupRealtime();
+  }
+
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  void _setupRealtime() {
+    _realtimeChannel = Supabase.instance.client
+        .channel('public:direct_messages')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'direct_messages',
+          callback: (payload) {
+            _fetchFriends();
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _fetchServers() async {
@@ -67,168 +90,61 @@ class _CommunityPageState
           .or('sender_id.eq.$currentUserId,receiver_id.eq.$currentUserId')
           .eq('status', 'accepted');
       
+      final List<Map<String, dynamic>> friendList = [];
+      
+      for (var row in (response as List)) {
+        final isSender = row['sender_id'] == currentUserId;
+        final friendProfile = isSender ? row['receiver'] : row['sender'];
+        
+        if (friendProfile == null) continue;
+
+        // Fetch unread messages count for this specific friend
+        final unreadRes = await Supabase.instance.client
+            .from('direct_messages')
+            .select('id')
+            .eq('sender_id', friendProfile['id'])
+            .eq('receiver_id', currentUserId)
+            .eq('is_read', false);
+
+        // Fetch last message for snippet
+        final lastMsgRes = await Supabase.instance.client
+            .from('direct_messages')
+            .select('content, created_at')
+            .or('and(sender_id.eq.$currentUserId,receiver_id.eq.${friendProfile['id']}),and(sender_id.eq.${friendProfile['id']},receiver_id.eq.$currentUserId)')
+            .order('created_at', ascending: false)
+            .limit(1)
+            .maybeSingle();
+
+        final fullName = friendProfile['username'] ?? friendProfile['full_name'] ?? 'Unknown';
+        final lastMsg = lastMsgRes?['content'] ?? "Tap to chat";
+        final lastTime = lastMsgRes != null 
+            ? DateFormat('hh:mm a').format(DateTime.parse(lastMsgRes['created_at']))
+            : "now";
+
+        friendList.add({
+          "id": friendProfile['id'],
+          "name": fullName,
+          "student_id": friendProfile['student_id'] ?? '',
+          "message": lastMsg,
+          "time": lastTime,
+          "online": true, // In a real app, you'd check presence
+          "unreadCount": unreadRes.length,
+        });
+      }
+
+      // Sort by unread first, then last active
+      friendList.sort((a, b) => (b['unreadCount'] as int).compareTo(a['unreadCount'] as int));
+
       if (mounted) {
         setState(() {
-          dms = (response as List).map((row) {
-            final isSender = row['sender_id'] == currentUserId;
-            final friendProfile = isSender ? row['receiver'] : row['sender'];
-            
-            if (friendProfile == null) {
-              return {
-                "id": isSender ? row['receiver_id'] : row['sender_id'],
-                "name": "Hidden Profile (RLS)",
-                "student_id": "",
-                "message": "Update RLS to see name",
-                "time": "",
-                "online": false,
-              };
-            }
-
-            final fullName = friendProfile['username'] ?? friendProfile['full_name'] ?? 'Unknown';
-            return {
-              "id": friendProfile['id'],
-              "name": fullName,
-              "student_id": friendProfile['student_id'] ?? '',
-              "message": "Tap to chat",
-              "time": "now",
-              "online": true,
-            };
-          }).toList();
+          dms = friendList;
           isLoadingFriends = false;
         });
       }
     } catch (e) {
       debugPrint('Error fetching friends: $e');
-      if (mounted) {
-        setState(() => isLoadingFriends = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading friends: $e')),
-        );
-      }
+      if (mounted) setState(() => isLoadingFriends = false);
     }
-  }
-
-  void _showAddFriendDialog() {
-    final TextEditingController nameController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-          title: const Text(
-            "Add New Friend",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                "Enter your friend's unique Student ID.",
-                style: TextStyle(color: Colors.grey, fontSize: 14),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: nameController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: "Student ID",
-                  prefixIcon: const Icon(Icons.badge, color: Color(0xFF5B4CF0)),
-                  filled: true,
-                  fillColor: const Color(0xFFF5F7FF),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: const BorderSide(color: Color(0xFF5B4CF0), width: 1.5),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Groups coming soon!"),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.group_add_outlined),
-                      label: const Text("New Group"),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        foregroundColor: Colors.black87,
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            ],
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              onPressed: () async {
-                final studentId = nameController.text.trim();
-                if (studentId.isNotEmpty) {
-                  Navigator.pop(context);
-                  final currentUserId = Supabase.instance.client.auth.currentUser!.id;
-                  try {
-                    final profileResponse = await Supabase.instance.client
-                        .from('profiles')
-                        .select('id')
-                        .eq('student_id', studentId)
-                        .maybeSingle();
-
-                    if (profileResponse == null) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Student ID not found")));
-                      return;
-                    }
-
-                    await Supabase.instance.client.from('friendships').insert({
-                      'sender_id': currentUserId,
-                      'receiver_id': profileResponse['id'],
-                      'status': 'accepted',
-                    });
-                    
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Friend added!")));
-                    _fetchFriends();
-                  } catch (e) {
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error adding friend")));
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5B4CF0),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-              child: const Text("Add Friend", style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
@@ -437,8 +353,9 @@ class _CommunityPageState
                                     message: dm["message"],
                                     time: dm["time"],
                                     online: dm["online"],
-                                    onTap: () {
-                                      Navigator.push(
+                                    badgeCount: dm["unreadCount"] ?? 0,
+                                    onTap: () async {
+                                      await Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                           builder: (_) => ChatPage(
@@ -447,6 +364,7 @@ class _CommunityPageState
                                           ),
                                         ),
                                       );
+                                      _fetchFriends(); // Refresh when returning from chat
                                     },
                                   );
                                 },

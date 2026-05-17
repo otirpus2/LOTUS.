@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models/message_model.dart';
 import 'widgets/message_bubble.dart';
+import 'data/notificiation_services.dart';
 
 class ChatPage extends StatefulWidget {
   final String title;
@@ -31,6 +32,28 @@ class _ChatPageState extends State<ChatPage> {
   void initState() {
     super.initState();
     _setupMessageStream();
+    // Initial clear when opening the chat
+    WidgetsBinding.instance.addPostFrameCallback((_) => _markMessagesAsRead());
+  }
+
+  Future<void> _markMessagesAsRead() async {
+    if (widget.receiverId == null) return;
+    
+    try {
+      final res = await Supabase.instance.client
+          .from('direct_messages')
+          .update({'is_read': true})
+          .eq('sender_id', widget.receiverId!)
+          .eq('receiver_id', currentUserId)
+          .eq('is_read', false)
+          .select();
+      
+      if (res.isNotEmpty) {
+        debugPrint('Marked ${res.length} messages as read');
+      }
+    } catch (e) {
+      debugPrint('Error marking messages as read: $e');
+    }
   }
 
   void _setupMessageStream() {
@@ -49,12 +72,16 @@ class _ChatPageState extends State<ChatPage> {
           .stream(primaryKey: ['id'])
           .order('created_at', ascending: false)
           .listen((data) {
+        // Mark as read whenever new data arrives while in chat
+        _markMessagesAsRead();
+
         final filteredData = data.where((msg) {
           final sId = msg['sender_id'];
           final rId = msg['receiver_id'];
           return (sId == currentUserId && rId == widget.receiverId) ||
                  (sId == widget.receiverId && rId == currentUserId);
         }).toList();
+
         _fetchProfilesAndMap(filteredData);
       });
     }
@@ -114,6 +141,14 @@ class _ChatPageState extends State<ChatPage> {
           'receiver_id': widget.receiverId,
           'content': content,
         });
+
+        // Trigger Notification
+        final senderName = Supabase.instance.client.auth.currentUser?.userMetadata?['full_name'] ?? 'Someone';
+        await NotificationService().createMessageNotification(
+          receiverId: widget.receiverId!,
+          senderName: senderName,
+          messageContent: content,
+        );
       }
     } catch (e) {
       if (mounted) {

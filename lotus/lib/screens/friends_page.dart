@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'chat_page.dart';
+import 'data/notificiation_services.dart';
 
 class FriendsPage extends StatefulWidget {
   const FriendsPage({super.key});
@@ -104,6 +105,13 @@ class _FriendsPageState extends State<FriendsPage>
         'receiver_id': targetId,
         'status': 'pending',
       });
+
+      // Trigger Notification
+      final senderName = supabase.auth.currentUser?.userMetadata?['full_name'] ?? 'Someone';
+      await NotificationService().createFriendRequestNotification(
+        receiverId: targetId,
+        senderName: senderName,
+      );
 
       studentIdController.clear();
       showSnackBar('Friend request sent');

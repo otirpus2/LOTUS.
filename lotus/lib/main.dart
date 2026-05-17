@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'services/push_notification_service.dart';
 
 import 'screens/login_page.dart';
 import 'screens/home.dart';
@@ -10,6 +12,8 @@ import 'screens/home.dart';
 void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp();
 
   await Supabase.initialize(
     url: 'https://ovpvbuzbazhciqacjptt.supabase.co',
@@ -20,11 +24,13 @@ void main() async {
     DeviceOrientation.portraitUp,
   ]);
 
-  final prefs =
-  await SharedPreferences.getInstance();
+  final prefs = await SharedPreferences.getInstance();
 
-  bool isLoggedIn =
-      prefs.getBool('isLoggedIn') ?? false;
+  bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+
+  if (isLoggedIn) {
+    await PushNotificationService.initialize();
+  }
 
   runApp(
     MyApp(

@@ -64,6 +64,11 @@ class _HomePageState extends State<HomePage> {
 
   RealtimeChannel? todoChannel;
 
+  int unreadMessages = 0;
+  int pendingFriendRequests = 0;
+  int unreadSystemNotifications = 0;
+  RealtimeChannel? notificationBadgeChannel;
+
   Future<void> _loadGreeting() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
@@ -171,6 +176,44 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _fetchUnreadCounts() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      // 1. Unread Direct Messages
+      final msgRes = await Supabase.instance.client
+          .from('direct_messages')
+          .select('id')
+          .eq('receiver_id', user.id)
+          .eq('is_read', false);
+      
+      // 2. Pending Friend Requests (Incoming)
+      final friendRes = await Supabase.instance.client
+          .from('friendships')
+          .select('id')
+          .eq('receiver_id', user.id)
+          .eq('status', 'pending');
+
+      // 3. Unread System Notifications (Warnings, Results, etc.)
+      final sysRes = await Supabase.instance.client
+          .from('notifications')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('is_read', false);
+
+      if (mounted) {
+        setState(() {
+          unreadMessages = msgRes.length;
+          pendingFriendRequests = friendRes.length;
+          unreadSystemNotifications = sysRes.length;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching counts: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -204,12 +247,37 @@ class _HomePageState extends State<HomePage> {
       },
     )
         .subscribe();
+
+    _fetchUnreadCounts();
+
+    notificationBadgeChannel = Supabase.instance.client
+        .channel('badges-channel')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'direct_messages',
+          callback: (payload) => _fetchUnreadCounts(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'friendships',
+          callback: (payload) => _fetchUnreadCounts(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notifications',
+          callback: (payload) => _fetchUnreadCounts(),
+        )
+        .subscribe();
   }
 
   @override
   void dispose() {
     alertChannel?.unsubscribe();
     todoChannel?.unsubscribe();
+    notificationBadgeChannel?.unsubscribe();
     alertController.dispose();
     super.dispose();
   }
@@ -354,50 +422,76 @@ class _HomePageState extends State<HomePage> {
       IconData icon,
       String title, {
         VoidCallback? onTap,
+        int? badgeCount,
       }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 100,
-        height: 100,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              height: 42,
-              width: 42,
-              decoration: BoxDecoration(
-                color: accentColor,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(
-                icon,
-                size: 22,
-                color: primaryColor,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 22,
+                    color: primaryColor,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (badgeCount != null && badgeCount > 0)
+            Positioned(
+              right: -5,
+              top: -5,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: Colors.redAccent,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  badgeCount.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -588,11 +682,11 @@ class _HomePageState extends State<HomePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                          const CommunityPage(),
+                          builder: (_) => const CommunityPage(),
                         ),
                       );
                     },
+                    badgeCount: unreadMessages > 0 ? unreadMessages : null,
                   ),
                   dashboardButton(
                     Icons.workspace_premium_rounded,
@@ -601,8 +695,7 @@ class _HomePageState extends State<HomePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                          const CertificatePage(),
+                          builder: (_) => const CertificatePage(),
                         ),
                       );
                     },
@@ -614,11 +707,11 @@ class _HomePageState extends State<HomePage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                          const ReportsSection(),
+                          builder: (_) => const ReportsSection(),
                         ),
                       );
                     },
+                    badgeCount: unreadSystemNotifications > 0 ? unreadSystemNotifications : null,
                   ),
                 ],
               ),
@@ -790,28 +883,48 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: IconButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                    const NotificationPage(),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: IconButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationPage(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.notifications_none_rounded,
+                    color: Colors.black,
+                    size: 20,
                   ),
-                );
-              },
-              icon: const Icon(
-                Icons.notifications_none_rounded,
-                color: Colors.black,
-                size: 20,
+                ),
               ),
-            ),
+              if (pendingFriendRequests + unreadSystemNotifications > 0)
+                Positioned(
+                  right: 18,
+                  top: 14,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 10,
+                      minHeight: 10,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
