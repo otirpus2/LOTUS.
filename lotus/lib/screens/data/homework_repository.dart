@@ -116,11 +116,11 @@ class HomeworkRepository {
       return const <HomeworkModel>[];
     }
 
-    var query = _supabase.from('homework').select('*');
+    var query = _supabase.from('homework').select('*, class_rooms!inner(name, section)');
     if (scope.classId != null) {
       query = query.eq('class_id', scope.classId!);
-    } else {
-      query = query.eq('class_name', scope.className!);
+    } else if (scope.className != null) {
+      query = query.eq('class_rooms.name', scope.className!);
     }
     final res = await query.order('created_at', ascending: false);
 

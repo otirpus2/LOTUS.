@@ -30,10 +30,10 @@ class HomeworkModel {
       fileType: map['file_type'] ?? '',
       fileName: map['file_name'] ?? '',
       storagePath: map['storage_path'] ?? '',
-      classNumber: _readClassNumber(map['class_name'] ?? map['class']),
-      className: (map['class_name'] ?? map['class'] ?? '').toString().trim(),
-      section: map['section'] ?? '',
-      targetStudentIds: _readStringList(map['target_student_ids']),
+      classNumber: _readClassNumber(
+        map['class_rooms']?['name'] ?? map['class_number'] ?? map['class_name'] ?? map['class'],
+      ),
+      section: map['class_rooms']?['section'] ?? map['section'] ?? '',
       createdAt: DateTime.parse(map['created_at'] as String),
     );
   }
