@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'chat_page.dart';
 
 class FriendsPage extends StatefulWidget {
   const FriendsPage({super.key});
@@ -55,8 +56,8 @@ class _FriendsPageState extends State<FriendsPage>
     try {
       final data = await supabase
           .from('friendships')
-          .select('*, sender:sender_id(*)')
-          .eq('receiver_id', currentUserId)
+          .select('*, sender:sender_id(*), receiver:receiver_id(*)')
+          .or('sender_id.eq.$currentUserId,receiver_id.eq.$currentUserId')
           .eq('status', 'pending');
       setState(() => requests = data);
     } catch (e) {
@@ -229,7 +230,17 @@ class _FriendsPageState extends State<FriendsPage>
             ),
           ),
           IconButton(
-            onPressed: () {},
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChatPage(
+                    title: friend['username'] ?? friend['full_name'] ?? 'Chat',
+                    receiverId: friend['id'],
+                  ),
+                ),
+              );
+            },
             icon: Icon(Icons.chat_bubble_outline, color: primaryColor, size: 22),
           ),
           IconButton(
@@ -242,7 +253,8 @@ class _FriendsPageState extends State<FriendsPage>
   }
 
   Widget buildRequestTile(dynamic request) {
-    final sender = request['sender'];
+    final isOutgoing = request['sender_id'] == currentUserId;
+    final otherUser = isOutgoing ? request['receiver'] : request['sender'];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -266,7 +278,7 @@ class _FriendsPageState extends State<FriendsPage>
                 radius: 24,
                 backgroundColor: primaryColor,
                 child: Text(
-                  (sender['username'] ?? sender['full_name'] ?? 'U')[0].toUpperCase(),
+                  (otherUser['username'] ?? otherUser['full_name'] ?? 'U')[0].toUpperCase(),
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -276,48 +288,75 @@ class _FriendsPageState extends State<FriendsPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      sender['username'] ?? sender['full_name'] ?? 'Unknown',
+                      otherUser['username'] ?? otherUser['full_name'] ?? 'Unknown',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                     Text(
-                      sender['student_id'] ?? '',
+                      otherUser['student_id'] ?? '',
                       style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                     ),
                   ],
                 ),
               ),
+              if (isOutgoing)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: accentColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Requested',
+                    style: TextStyle(color: primaryColor, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
             ],
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () => acceptRequest(request['id']),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
+          if (!isOutgoing) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => acceptRequest(request['id']),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: const Text('Accept', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
-                  child: const Text('Accept', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () => rejectRequest(request['id']),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: accentColor,
-                    foregroundColor: Colors.redAccent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => rejectRequest(request['id']),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accentColor,
+                      foregroundColor: Colors.redAccent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: const Text('Reject', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
-                  child: const Text('Reject', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => rejectRequest(request['id']), // Use reject to cancel outgoing
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.redAccent),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Cancel Request', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
               ),
-            ],
-          ),
+            ),
+          ],
         ],
       ),
     );
