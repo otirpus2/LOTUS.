@@ -20,7 +20,7 @@ class ClassManagementRepository {
   Future<ClassScope> getCurrentClassScope() async {
     final row = await _supabase
         .from('profiles')
-        .select('class, section, class_id, class_rooms(name, section)')
+        .select('class_id, class_rooms(name, section)')
         .eq('id', _currentUserId)
         .maybeSingle();
 

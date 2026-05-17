@@ -73,8 +73,8 @@ class StudentProfile {
       fullName: map['full_name'] ?? map['username'] ?? '',
       motherName: map['mother_name'] ?? '',
       fatherName: map['father_name'] ?? '',
-      studentClass: _readClassNumber(map['class']),
-      section: map['section'] ?? '',
+      studentClass: _readClassNumber(map['class_rooms']?['name']),
+      section: map['class_rooms']?['section'] ?? '',
       mobileNumber: map['mobile_number'] ?? '',
       email: map['email'] ?? '',
       category: map['category'] ?? '',
@@ -184,7 +184,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final Map<String, dynamic>? row = await _supabase
           .from('profiles')
           .select(
-            'id, username, full_name, mother_name, father_name, class, section, mobile_number, email, category, subjects',
+            'id, username, full_name, mother_name, father_name, class_id, mobile_number, email, category, subjects, class_rooms(name, section)',
           )
           .eq('id', user.id)
           .maybeSingle();

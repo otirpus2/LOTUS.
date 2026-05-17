@@ -26,6 +26,6 @@ class ClassScope {
     if (classId != null) {
       return {'class_id': classId};
     }
-    return {'class_name': className, 'section': section};
+    return {};
   }
 }
